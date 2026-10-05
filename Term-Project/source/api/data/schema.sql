@@ -54,13 +54,15 @@ CREATE TABLE bookings (
   waitlist_seq INTEGER,
   created_at   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   FOREIGN KEY (user_id)     REFERENCES users(id),
-  FOREIGN KEY (schedule_id) REFERENCES schedules(id),
-  UNIQUE (user_id, schedule_id) WHERE status != 'cancelled'
+  FOREIGN KEY (schedule_id) REFERENCES schedules(id)
 );
 
 CREATE INDEX idx_schedules_search ON schedules(origin_id, destination_id, departure_time);
 CREATE INDEX idx_bookings_fifo    ON bookings(schedule_id, waitlist_seq, id);
 CREATE INDEX idx_bookings_user    ON bookings(user_id);
+-- Permit rebooking after cancellation while preventing duplicate active bookings.
+CREATE UNIQUE INDEX idx_bookings_active_user_schedule
+  ON bookings(user_id, schedule_id) WHERE status != 'cancelled';
 
 -- ═══════════════════════════════════════════════════════════
 -- Seed data (reset on every schema run → consistent test state)

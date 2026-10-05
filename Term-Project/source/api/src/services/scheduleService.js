@@ -1,4 +1,4 @@
-import { listCampuses, findCampusById, findScheduleById, listSchedules, getDb } from './shuttleDb.js';
+import { listCampuses, findScheduleById, listSchedules, getDb, isDepartureTimePast } from './shuttleDb.js';
 
 /**
  * scheduleService.js — read-side queries for campuses and schedules.
@@ -22,7 +22,7 @@ export function getCampuses() {
  *   }
  *
  * The `status` field is derived:
- *   - 'expired'  if the stored status is 'expired' (past departure_time)
+ *   - 'expired'  if departure_time is in the past or stored status is expired
  *   - 'full'     if available_seats === 0 and no waitlist (rare)
  *   - 'waitlist' if available_seats <= 0 (booking will put users in waitlist)
  *   - 'active'   otherwise
@@ -47,7 +47,7 @@ function decorate(row) {
   const available = Math.max(0, row.capacity - confirmed - waitlist);
   const storedStatus = row.status;
   const derivedStatus =
-    storedStatus === 'expired' ? 'expired'
+    storedStatus === 'expired' || isDepartureTimePast(row.departure_time) ? 'expired'
     : available <= 0 ? (waitlist > 0 ? 'waitlist' : 'full')
     : 'active';
   return {

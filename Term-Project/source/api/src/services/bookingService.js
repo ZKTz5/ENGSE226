@@ -1,5 +1,5 @@
 import {
-  getDb, runInImmediateTransaction, findScheduleById, findUserById,
+  getDb, runInImmediateTransaction, findScheduleById, findUserById, isDepartureTimePast,
 } from './shuttleDb.js';
 
 /**
@@ -18,7 +18,7 @@ export function createBooking({ userId, scheduleId }) {
     if (!user) return { ok: false, status: 401, error: 'user not found' };
     const schedule = findScheduleById(scheduleId);
     if (!schedule) return { ok: false, status: 404, error: 'schedule not found' };
-    if (schedule.status === 'expired') {
+    if (schedule.status === 'expired' || isDepartureTimePast(schedule.departure_time)) {
       return { ok: false, status: 409, error: 'expired_schedule' };
     }
     const existing = d

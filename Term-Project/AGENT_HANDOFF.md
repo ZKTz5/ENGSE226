@@ -189,9 +189,9 @@ executed successfully.
 ### Backend (Express.js)
 - **Framework**: Express 5.1.0 with ESM (type: module).
 - **Database**: SQLite (libsql 0.5.29) with `node:sqlite` fallback.
-- **Service Layer**: Business logic is separated into `services/` (e.g., `authService.js`, `requestService.js`).
+- **Service Layer**: Business logic is separated into `services/` (`authService.js`, `scheduleService.js`, `bookingService.js`, `shuttleDb.js`).
 - **Auth**: JWT-based authentication using `jsonwebtoken`. Password hashing via `node:crypto` (scrypt).
-- **Validation**: Pure functions in `validators/` for request payload validation.
+- **Validation**: Pure functions in `validators/shuttleValidator.js` for login payloads and schedule filters.
 - **Error Handling**: Centralized `errorHandler.js` middleware.
 - **Tests**: Vitest for unit and integration testing.
 
@@ -210,26 +210,12 @@ executed successfully.
 - `source/frontend/src/services/apiClient.js` (Fetch wrapper with base URL)
 - `source/frontend/src/components/LoadingState.jsx` / `ErrorState.jsx`
 
-## Files to Modify
+## Remaining Frontend Files
 
-- `source/api/data/schema.sql` (Replace current tables with Shuttle schema)
-- `source/api/src/app.js` (Update route registrations)
-- `source/api/src/validators/requestValidator.js` -> Rename to `source/api/src/validators/shuttleValidator.js`
-- `source/api/src/services/authService.js` (Add institutional email validation)
-- `source/frontend/src/App.jsx` (New routes for schedules and bookings)
-- `source/frontend/src/services/requestService.js` -> Rename to `source/frontend/src/services/shuttleService.js`
-
-## Files to Create
-
-- `source/api/src/routes/scheduleRoutes.js`
-- `source/api/src/routes/bookingRoutes.js`
-- `source/api/src/services/scheduleService.js`
-- `source/api/src/services/bookingService.js`
-- `source/api/tests/integration/booking.api.test.js`
-- `source/api/tests/unit/waitlist.test.js`
-- `source/frontend/src/pages/SchedulesPage.jsx`
-- `source/frontend/src/pages/BookingDetailPage.jsx`
-- `source/frontend/src/pages/MyBookingsPage.jsx`
+- `source/frontend/src/App.jsx` (Add shuttle routes)
+- `source/frontend/src/services/requestService.js` (Replace with shuttle API client)
+- `source/frontend/src/pages/` (Add schedules, schedule detail, and My Bookings pages)
+- `source/frontend/src/components/` (Replace request-specific UI with shuttle UI)
 
 ## Proposed Database Schema
 
@@ -246,7 +232,7 @@ CREATE TABLE users (
   name          TEXT NOT NULL,
   email         TEXT NOT NULL UNIQUE,
   role          TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
   created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
@@ -272,14 +258,16 @@ CREATE TABLE bookings (
   user_id     INTEGER NOT NULL,
   schedule_id INTEGER NOT NULL,
   status      TEXT NOT NULL DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'waitlisted', 'cancelled')),
+  waitlist_seq INTEGER,
   created_at  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   FOREIGN KEY (user_id) REFERENCES users(id),
-  FOREIGN KEY (schedule_id) REFERENCES schedules(id),
-  UNIQUE(user_id, schedule_id) WHERE status != 'cancelled'
+  FOREIGN KEY (schedule_id) REFERENCES schedules(id)
 );
 
 CREATE INDEX idx_schedules_search ON schedules(origin_id, destination_id, departure_time);
-CREATE INDEX idx_bookings_fifo ON bookings(schedule_id, created_at, id);
+CREATE INDEX idx_bookings_fifo ON bookings(schedule_id, waitlist_seq, id);
+CREATE UNIQUE INDEX idx_bookings_active_user_schedule
+  ON bookings(user_id, schedule_id) WHERE status != 'cancelled';
 ```
 
 ## Proposed API Contract
@@ -306,13 +294,10 @@ Note on authentication:
 ## Implementation Risks
 
 - **Concurrency**: SQLite handles multiple writes via file locking, but `BEGIN IMMEDIATE` transactions are required to ensure `available_seats` doesn't drop below zero under load.
-- **FIFO Accuracy (tie-breaking is NOT fully deterministic)**: `created_at` is a
-  second-resolution `TEXT` timestamp, so many concurrent bookings share the same
-  `created_at`. `id` only breaks the tie when inserts are sequential. Under the
-  existing DB pool, inserts from different connections can have overlapping
-  `id` ordering, so promotion order is not guaranteed. Recommend adding a
-  monotonic `waitlist_seq INTEGER` column set to `MAX(waitlist_seq)+1` inside
-  the booking transaction, and order FIFO by `(waitlist_seq, id)`.
+- **FIFO and remote transactions**: Local SQLite assigns `waitlist_seq` inside
+  the booking transaction and promotes by `(waitlist_seq, id)`. The Turso branch
+  still needs driver and concurrency verification before making the same claim
+  for a deployed remote database.
 - **Timezone Drift**: Standardizing on ISO8601 strings and server-side `datetime('now')` is critical.
 - **Waitlist Loop**: Cancellation of a waitlisted entry should NOT trigger a promotion, only cancellation of a confirmed entry.
 
@@ -339,151 +324,59 @@ Note on authentication:
 > Note: the earlier 14-step "Implementation Order" and this "Phase 1-5" list
 > describe the same work; keep both in sync when updating this file.
 
-## Current Status
+## Current Status (2026-10-06)
 
-### Completed
+The shuttle migration from commit `5209174` was reviewed and preserved. The
+backend scope requested in this phase is implemented; the frontend remains the
+Campus Service UI and is outside this backend phase.
 
-- [x] Existing Campus Service repository available
-- [x] Frontend foundation available
-- [x] Backend foundation available
-- [x] SQLite database foundation available
-- [x] Authentication foundation available
-- [x] Existing test structure available
-- [x] Repository analysis and migration plan
+### Backend implementation
 
-### In Progress
+- [x] Shuttle schema, seed data, authentication, campus/schedule APIs, booking,
+  cancellation, and waitlist promotion remain in the existing Express/SQLite
+  architecture.
+- [x] Validate optional schedule filters (`originId`, `destinationId`, `date`),
+  reject malformed values and same-campus filters, and return HTTP 400 with
+  field details.
+- [x] Derive schedule expiration from departure time in schedule responses and
+  reject booking after departure, even if the stored status remains `active`.
+- [x] Replace request validator naming with `shuttleValidator.js`; remove the
+  unused request middleware and references to the deleted request service from
+  the API checker, account script, and backend tests.
+- [x] Replace legacy request tests with shuttle auth, schedule, filter, booking,
+  and expiration coverage. Keep the existing password tests.
+- [x] Update database setup foreign-key reporting and API smoke checks for the
+  shuttle schema. The smoke check uses a fresh in-memory DB to avoid touching a
+  pre-existing local database file.
+- [x] Replace the obsolete `create-staff` script with `create-user` for
+  institutional `user` or `admin` accounts; update the project README.
 
-- [ ] Shuttle database schema
+### Verification
 
-### Pending
+- Backend suite: **PASS**, `npm test --prefix api` — 37 tests in 5 files.
+- Backend smoke check: **PASS**, `npm run check --prefix api` — 4/4 checks.
+- `git diff --check`: passed.
+- Frontend build: not run in this backend phase; previous environment attempt
+  failed while initializing Qt's `xcb` plugin and remains unverified.
 
-- [ ] Seed routes and schedules
-... (rest of the file) ...
+### Remaining project work
 
-- [ ] Schedules API
-- [ ] Shuttle frontend
-- [ ] Frontend/API integration
-- [ ] Booking
-- [ ] Cancellation
-- [ ] Waitlist
-- [ ] FIFO promotion
-- [ ] Concurrency tests
-- [ ] Final test and build verification
-- [ ] Deployment and handover evidence
+- Frontend login and shuttle pages, API integration, responsive layouts, and
+  loading/empty/error/success/expired/full states remain pending.
+- Add concurrent booking coverage and verify transaction behavior on any
+  deployed Turso driver; current test coverage uses local in-memory SQLite.
+- The existing ignored `data/campus.db` can still contain the original Campus
+  Service schema. `db:setup` intentionally does not overwrite an existing DB;
+  migrate or explicitly reset that database before using the shuttle server.
+- Review deployment configuration and prepare deployment evidence after the
+  frontend conversion.
 
-## Current Phase
+### Changes in this phase
 
-Repository analysis only.
-
-The first agent must inspect the entire repository and update this
-document before changing implementation files.
-
-## Decisions
-
-- Keep the existing React, Node.js, and SQLite stack
-- Reuse the existing authentication implementation where possible
-- Reuse existing components and service patterns where practical
-- Do not retain Request terminology in the final user-facing system
-- Do not replace working architecture without a documented reason
-- Do not use mock data in the final primary user flow
-- Commit after each successful implementation phase
-
-## Safety Rules for Agents
-
-- Do not delete existing tests to make the test suite pass
-- Do not overwrite environment files or secrets
-- Do not commit API keys, tokens, or passwords
-- Do not modify unrelated files
-- Do not perform large rewrites without documenting the reason
-- Do not report completion without running tests
-- Do not allow both agents to edit files simultaneously
-- Stop the current phase if the baseline project no longer runs
-
-## Test Results
-
-Not executed for the Shuttle implementation yet.
-
-| Check | Status |
-|---|---|
-| Backend tests | NOT RUN |
-| Frontend tests | NOT RUN |
-| Frontend build | NOT RUN |
-| API integration tests | NOT RUN |
-| Concurrency tests | NOT RUN |
-
-## Changed Files
-
-No Shuttle implementation files changed yet.
-
-## Known Issues
-
-- Booking and waitlist logic do not appear to be implemented yet
-- Deployment configuration must be checked before final delivery
-
-## Technical Review — Verified Assumptions (2026-10-05)
-
-Repository inspection confirmed:
-
-- Express 5.1.0 ESM backend (`type: module`), service/controller/middleware
-  split, centralized `errorHandler.js`.
-- React 19 + Vite 8 + React Router 7 frontend; API calls via
-  `services/apiClient.js` (fetch wrapper), `services/requestService.js`.
-- DB layer: `services/requestService.js` uses `node:sqlite` (`DatabaseSync`)
-  by default and `libsql` (`new Database(url, {authToken})`) when
-  `TURSO_DATABASE_URL` is set.
-- Authentication: JWT via `jsonwebtoken`; password hashing via
-  `node:crypto` scrypt (`scrypt$<salt>$<hash>`); `authenticate`/`requireRole`
-  middleware.
-- Existing schema: `users` (name, department, email, role `requester`/`staff`,
-  nullable `password_hash`), `requests` (TEXT PK `REQ-00n`).
-- Package scripts: api `dev|start|check|test|db:setup|db:reset|test:watch|
-  coverage|create-staff`; frontend `dev|check|build|preview|verify|test`;
-  root `build|start|test|coverage|check`.
-- Existing tests: `tests/unit/password.test.js`,
-  `tests/unit/requestValidator.test.js`, `tests/integration/
-  auth.api.test.js`, `tests/integration/requests.api.test.js`
-  (integration tests call `loadSeed()` in `beforeEach` and use
-  `DB_FILE=':memory:'` via `vitest.config.js`).
-
-Issues found in the proposed plan:
-
-1. **Authentication flow not preserved by the proposed schema.**
-   - `users.role` changes `requester/staff` → `user/admin`, but
-     `authService.login` still checks `role === 'staff'` and
-     `requireRole('staff')` is used on the existing PUT/DELETE routes.
-     Roles must be reconciled in one pass or existing tests break.
-   - `users.password_hash` becomes `NOT NULL`, but seeded `requester` users
-     have `NULL` — seeding must provide hashes or use a nullable column.
-   - `department` is dropped, but `GET /api/users` currently returns it and
-     `requests.api.test.js` expects 5 users without email. If `/api/users` is
-     kept, the service and its test must be updated in Phase 1.
-
-2. **`BEGIN IMMEDIATE` + the existing libsql path is not verified/working.**
-   - `openDatabase()` uses `new Database(url, {authToken})` from `libsql`, but
-     that is the async **Client** API (`libsql` v0.5 exposes `Client` and
-     `createClient`, not a synchronous `Database` constructor). The sync
-     `db.exec('BEGIN IMMEDIATE')` pattern used for overbooking prevention
-     therefore does not work on the current Turso path.
-   - The deterministic FIFO/transaction work is only guaranteed on a single
-     synchronous local connection. Concurrency tests must run against the
-     same driver that is used at runtime, and the Turso path must either be
-     fixed or excluded from the concurrency guarantees.
-   - Environment note: `package.json` requires Node `>=22.13.0`; the dev box
-     observed during review is Node 18 where `node:sqlite` is unavailable.
-     Confirm the runtime Node version before relying on `node:sqlite`.
-
-## Instructions for the Next Agent
-
-1. Read this entire file
-2. Inspect both `./source/api` and `./source/frontend`
-3. Inspect all package scripts and existing tests
-4. Do not modify implementation files yet
-5. Update this document with:
-   - Current architecture
-   - Reusable files
-   - Files to modify
-   - Files to create
-   - Proposed database schema
-   - Proposed API contract
-   - Implementation risks
-6. Report the analysis before starting implementation
+- `source/api/src/validators/shuttleValidator.js`: login and schedule-filter validation.
+- `source/api/src/routes/scheduleRoutes.js`: HTTP 400 filter errors.
+- `source/api/src/services/shuttleDb.js`, `scheduleService.js`, and `bookingService.js`:
+  departure-time expiry check shared by schedule display and booking.
+- Backend auth/schedule tests migrated from request-domain tests to shuttle equivalents.
+- Removed the request-oriented checker and middleware; updated setup-db, account
+  tooling, package scripts, and project documentation for the shuttle domain.

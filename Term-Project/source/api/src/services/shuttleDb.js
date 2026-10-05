@@ -71,6 +71,13 @@ export function getDriver() {
   return driver;
 }
 
+/** Compare against SQLite's local clock, matching the local timestamps in schema.sql. */
+export function isDepartureTimePast(departureTime) {
+  return Boolean(getDb()
+    .prepare("SELECT datetime(?) <= datetime('now','localtime') AS expired")
+    .get(departureTime).expired);
+}
+
 /** Run a callback inside a BEGIN IMMEDIATE ... COMMIT/ROLLBACK block. */
 export function runInImmediateTransaction(fn) {
   const d = getDb();
@@ -96,6 +103,19 @@ export function findUserByEmail(email) {
 
 export function findUserById(id) {
   return getDb().prepare('SELECT id, name, email, role FROM users WHERE id = ?').get(id) ?? null;
+}
+
+export function upsertUser({ email, name, passwordHash, role = 'user' }) {
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const existing = findUserByEmail(normalizedEmail);
+  if (existing) {
+    getDb().prepare('UPDATE users SET name = ?, role = ?, password_hash = ? WHERE id = ?')
+      .run(name, role, passwordHash, existing.id);
+    return 'updated';
+  }
+  getDb().prepare('INSERT INTO users (name, email, role, password_hash) VALUES (?, ?, ?, ?)')
+    .run(name, normalizedEmail, role, passwordHash);
+  return 'created';
 }
 
 // ───────────────────────────────────────────────

@@ -1,6 +1,6 @@
-# Campus Service — ระบบ Full-Stack (ENGSE203 Week 11)
+# RMUTL Shuttle Booking System
 
-ระบบรับคำร้องขอใช้บริการภายในมหาวิทยาลัย · **React + Express API + SQLite** ทำงานครบวงจร
+ระบบค้นหาเที่ยวรถและจองรถรับส่งระหว่างวิทยาเขต · **React + Express API + SQLite**
 
 ## สถาปัตยกรรม 3 ชั้น
 
@@ -15,8 +15,8 @@
 | ชั้น | หน้าที่ | โฟลเดอร์ |
 |---|---|---|
 | Frontend | หน้าจอผู้ใช้ · เรียก API | `frontend/` |
-| API | route · controller · service | `api/src/` |
-| Database | เก็บข้อมูลถาวร | `api/data/campus.db` |
+| API | auth · campus · schedule · booking routes/services | `api/src/` |
+| Database | เก็บบัญชีผู้ใช้ · วิทยาเขต · ตารางรถ · การจอง | `api/data/campus.db` |
 
 ## วิธีรัน (development)
 
@@ -77,7 +77,7 @@ curl http://localhost:3001/api/health
 
 ## API Endpoints
 
-ดู `API_CONTRACT.md` สำหรับรายละเอียดครบ · สรุป: `GET/POST/PUT/DELETE /api/requests` · `GET /api/health`
+ดู `API_CONTRACT.md` สำหรับรายละเอียดครบ · สรุป: `/api/auth`, `/api/campuses`, `/api/schedules`, `/api/bookings`, `/api/health`
 
 ## การตัดสินใจด้านการออกแบบ
 
@@ -95,7 +95,7 @@ npm run coverage         # รายงานว่าบรรทัดไห�
 
 | โฟลเดอร์ | ชนิด test | ทดสอบอะไร |
 |---|---|---|
-| `api/tests/unit/` | unit | pure function เช่น `validators/requestValidator.js` — ไม่ต้องเปิด server |
+| `api/tests/unit/` | unit | pure function เช่น `validators/shuttleValidator.js` — ไม่ต้องเปิด server |
 | `api/tests/integration/` | integration | ยิง HTTP จริงผ่านทุกชั้น ด้วย supertest บนฐานข้อมูลในหน่วยความจำ (`DB_FILE=:memory:`) |
 | `frontend/src/**/*.test.js` | unit | pure function ฝั่ง React เช่น `utils/requestSummary.js` |
 
@@ -106,20 +106,19 @@ npm run coverage         # รายงานว่าบรรทัดไห�
 
 | เรื่อง | ไฟล์ |
 |---|---|
-| validation เข้มขึ้น (ชนิดข้อมูล · ความยาวสูงสุด · body ≤ 10kb) | `api/src/validators/requestValidator.js` · `api/src/app.js` |
+| validation login และตัวกรองตารางรถ · body ≤ 10kb | `api/src/validators/shuttleValidator.js` · `api/src/app.js` |
 | รหัสผ่านเก็บเป็น hash (scrypt) | `api/src/utils/password.js` |
 | เข้าสู่ระบบด้วย JWT | `api/src/services/authService.js` · `POST /api/auth/login` |
-| สิทธิ์: GET/POST ทุกคน · PUT/DELETE เฉพาะเจ้าหน้าที่ | `api/src/middleware/auth.js` · `api/src/routes/requestRoutes.js` |
+| สิทธิ์: สร้างและดูการจองต้องใช้ JWT | `api/src/middleware/auth.js` · `api/src/routes/bookingRoutes.js` |
 | secret มาจาก env · production ไม่มี secret = ไม่ start | `api/src/config.js` · `api/.env.example` |
 
-**บัญชีเจ้าหน้าที่สำหรับพัฒนา** — `staff@rmutl.ac.th` / `staff1234` (อยู่ใน schema.sql เป็น hash)
-⚠ ก่อนใช้งานจริง: สร้างบัญชีใหม่ด้วย `npm run create-staff --prefix api -- <อีเมล> <รหัสผ่าน>` และตั้ง `JWT_SECRET` ใน Environment ของ Render
+บัญชีทดสอบใน schema ใช้รหัสผ่าน `rmutl1234` สำหรับ development เท่านั้น
+ก่อนใช้งานจริง ให้ตั้ง `JWT_SECRET` และสร้างบัญชีด้วย `npm run create-user --prefix api -- <อีเมล@rmutl.ac.th> <รหัสผ่าน> [ชื่อ] [user|admin]`.
 
 ```bash
 curl -X POST localhost:3001/api/auth/login -H "Content-Type: application/json" \
-  -d '{"email":"staff@rmutl.ac.th","password":"staff1234"}'
+  -d '{"email":"tan.khanit@rmutl.ac.th","password":"rmutl1234"}'
 # → { "token": "eyJ...", "user": { ... } }
 
-curl -X PUT localhost:3001/api/requests/REQ-001 -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" -d '{"status":"completed"}'
+curl 'localhost:3001/api/schedules?originId=1&destinationId=2'
 ```

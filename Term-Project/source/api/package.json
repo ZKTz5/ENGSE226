@@ -14,7 +14,7 @@
     "db:reset": "node --disable-warning=ExperimentalWarning scripts/setup-db.mjs --force",
     "test:watch": "vitest",
     "coverage": "vitest run --coverage",
-    "create-staff": "node --disable-warning=ExperimentalWarning scripts/create-staff.mjs"
+    "create-user": "node --disable-warning=ExperimentalWarning scripts/create-user.mjs"
   },
   "dependencies": {
     "cors": "^2.8.6",
