@@ -1,6 +1,6 @@
 import { config } from './config.js';
 import { createApp } from './app.js';
-import { loadSeed } from './services/requestService.js';
+import { loadSeed } from './services/shuttleDb.js';
 
 await loadSeed();
 const app = createApp();

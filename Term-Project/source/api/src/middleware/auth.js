@@ -20,7 +20,8 @@ export function authenticate(req, res, next) {
     return res.status(401).json({ error: 'ต้องเข้าสู่ระบบก่อน' });
   }
   try {
-    req.user = verifyToken(token);   // ผ่าน → แนบข้อมูลผู้ใช้ไว้ให้ middleware/controller ถัดไป
+    const payload = verifyToken(token);
+    req.user = { id: Number(payload.sub), name: payload.name, role: payload.role };
     next();
   } catch {
     res.set('WWW-Authenticate', 'Bearer error="invalid_token"');
