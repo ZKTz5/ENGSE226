@@ -123,7 +123,7 @@ Frontend แสดงข้อมูลและส่งคำขอผ่า�
 
 ### 2. ส่วนของระบบที่เกี่ยวข้อง
 
-API code nằm trong `source/api/src/`; schema/seed ở `source/api/data/schema.sql`; scripts và tests ở `source/api/scripts/`, `source/api/tests/`.
+โค้ด API อยู่ที่ `source/api/src/`; schema/seed อยู่ที่ `source/api/data/schema.sql`; scripts และ tests อยู่ที่ `source/api/scripts/`, `source/api/tests/`.
 
 ### 3. หลักการทำงาน
 
