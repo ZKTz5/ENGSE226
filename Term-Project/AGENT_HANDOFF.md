@@ -394,6 +394,17 @@ Jed Yod and Doi Saket only. Deployment checks and evidence remain.
 - Verification: frontend tests 16/16, frontend checks 7/7, and production build
   passed. Existing API booking/FIFO behavior was not changed.
 
+### Optional bilingual user guide
+
+- Added a normal `/guide` page and a persistent navigation item labelled
+  `คู่มือการใช้งาน` / `User Guide`. It opens only when selected and does not
+  interrupt login or booking.
+- The ten translated steps cover approved login, the two locations, route/date
+  search, schedule details, booking, waitlist, My Bookings, cancellation,
+  expiry, and language switching. Account provisioning is described as an
+  operator task; no self-signup is offered.
+- Verification: frontend tests 16/16, checker 7/7, and production build passed.
+
 ## Sprint 1–4 Gap Analysis (2026-10-06)
 
 | Sprint | Already implemented | Remaining at start of this phase |

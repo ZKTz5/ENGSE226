@@ -20,10 +20,12 @@ async function check(name, callback) {
   }
 }
 
-await check('Shuttle login, dashboard, search, detail, and bookings routes', async () => {
+await check('Shuttle login, dashboard, search, detail, bookings, and guide routes', async () => {
   const app = await read('src/App.jsx');
-  return ['path="login"', 'path="schedules"', 'path="schedules/:scheduleId"', 'path="bookings"']
-    .every((route) => app.includes(route));
+  const header = await read('src/components/AppHeader.jsx');
+  return ['path="login"', 'path="schedules"', 'path="schedules/:scheduleId"', 'path="bookings"', 'path="guide"']
+    .every((route) => app.includes(route))
+    && header.includes('to="/guide"') && header.includes("t('nav.guide')");
 });
 await check('Shuttle login and schedule API service calls', async () => {
   const service = await read('src/services/shuttleService.js');

@@ -214,6 +214,11 @@ input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="
 .filter-button { padding: .55rem .7rem; border: 1px solid var(--border); border-radius: .6rem; color: var(--coffee); background: var(--surface-muted); }
 .filter-active { color: var(--surface); background: var(--brown); }
 .prose { max-width: 58rem; line-height: 1.7; }
+.user-guide { max-width: 58rem; margin-inline: auto; }
+.guide-list { display: grid; gap: .75rem; margin: 1.25rem 0 0; padding: 0; list-style: none; counter-reset: guide; }
+.guide-list li { display: grid; grid-template-columns: 2.5rem 1fr; align-items: start; gap: .8rem; padding: 1rem; border: 1px solid var(--border); border-radius: .85rem; background: var(--surface); box-shadow: var(--shadow-card); }
+.guide-step-number { display: grid; width: 2.35rem; height: 2.35rem; place-items: center; border-radius: 50%; color: var(--coffee); background: var(--gold-soft); font-weight: 900; }
+.guide-list p { margin: .2rem 0; line-height: 1.65; }
 .radio-label { display: inline-flex; align-items: center; gap: .35rem; margin-right: 1rem; }
 .error { min-height: 1.1rem; color: var(--brick); }
 

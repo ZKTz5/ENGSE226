@@ -23,6 +23,7 @@ function AppHeader() {
               {t(key)}
             </NavLink>
           ))}
+          <NavLink className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`} to="/guide">{t('nav.guide')}</NavLink>
           {session ? (
             <>
               <NavLink className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`} to="/bookings">{t('nav.bookings')}</NavLink>
