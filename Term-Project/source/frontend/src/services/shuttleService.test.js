@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   cancelBooking, createBooking, getCampuses, getMyBookings, getSchedule, getSchedules, login,
 } from './shuttleService.js';
-import { setApiAuthToken } from './apiClient.js';
+import { ApiError, setApiAuthToken } from './apiClient.js';
 
 function response(body, status = 200) {
   return { ok: status >= 200 && status < 300, status, json: async () => body };
@@ -66,5 +66,14 @@ describe('shuttleService', () => {
       ['http://localhost:3001/api/bookings/14', 'DELETE'],
     ]);
     expect(fetch.mock.calls[1][1].body).toBe(JSON.stringify({ scheduleId: 5 }));
+  });
+
+  test('preserves stable API error codes for localized frontend messages', async () => {
+    fetch.mockResolvedValue(response({ code: 'expired_schedule', error: 'server message' }, 409));
+    const pending = createBooking(4);
+    await expect(pending).rejects.toMatchObject({
+      code: 'expired_schedule', status: 409, message: 'server message',
+    });
+    await expect(pending).rejects.toBeInstanceOf(ApiError);
   });
 });

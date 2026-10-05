@@ -3,29 +3,29 @@ import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import LoadingState from '../components/LoadingState.jsx';
-import { formatDeparture } from '../components/ScheduleCard.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useLanguage } from '../contexts/LanguageContext.jsx';
+import { apiErrorKey, displayCampusName, formatDeparture } from '../i18n/translations.js';
 import { cancelBooking, getMyBookings } from '../services/shuttleService.js';
-
-const statusLabel = { confirmed: 'Confirmed', waitlisted: 'Waitlisted', cancelled: 'Cancelled' };
 
 function MyBookingsPage() {
   const { session } = useAuth();
+  const { language, t } = useLanguage();
   const [bookings, setBookings] = useState([]);
   const [state, setState] = useState('loading');
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
+  const [errorKey, setErrorKey] = useState('');
+  const [noticeKey, setNoticeKey] = useState('');
   const [cancelingId, setCancelingId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   const loadBookings = useCallback(() => {
     let ignore = false;
     setState('loading');
-    setError('');
+    setErrorKey('');
     getMyBookings().then((items) => {
       if (!ignore) { setBookings(items); setState('success'); }
     }).catch((reason) => {
-      if (!ignore) { setError(reason.message || 'Could not load your bookings.'); setState('error'); }
+      if (!ignore) { setErrorKey(apiErrorKey(reason)); setState('error'); }
     });
     return () => { ignore = true; };
   }, []);
@@ -34,18 +34,16 @@ function MyBookingsPage() {
 
   async function handleCancel(booking) {
     setCancelingId(booking.id);
-    setError('');
-    setNotice('');
+    setErrorKey('');
+    setNoticeKey('');
     try {
       const result = await cancelBooking(booking.id);
-      setNotice(result.promotedId
-        ? 'Booking cancelled. The next passenger on the waitlist was promoted.'
-        : booking.status === 'waitlisted'
-          ? 'Your waitlist entry was cancelled.'
-          : 'Your booking was cancelled.');
+      setNoticeKey(result.promotedId
+        ? 'bookings.promotedNotice'
+        : booking.status === 'waitlisted' ? 'bookings.waitlistCancelled' : 'bookings.cancelledNotice');
       setBookings(await getMyBookings());
     } catch (reason) {
-      setError(reason.message || 'Could not cancel this booking.');
+      setErrorKey(reason?.code ? apiErrorKey(reason) : 'bookings.cancelError');
     } finally {
       setCancelingId(null);
     }
@@ -54,39 +52,39 @@ function MyBookingsPage() {
   if (!session) {
     return (
       <section className="page-section" data-testid="page-my-bookings">
-        <div className="page-heading"><div><p className="eyebrow dark">YOUR TRIPS</p><h1>My Bookings</h1></div></div>
-        <EmptyState title="Sign in to see your bookings" message="Your RMUTL account keeps your shuttle bookings together."
-          action={<Link className="button primary inline" to="/login">Sign in</Link>} />
+        <div className="page-heading"><div><p className="eyebrow dark">{t('bookings.eyebrow')}</p><h1>{t('bookings.title')}</h1></div></div>
+        <EmptyState title={t('bookings.signInTitle')} message={t('bookings.signInText')}
+          action={<Link className="button primary inline" to="/login">{t('bookings.signIn')}</Link>} />
       </section>
     );
   }
 
   return (
     <section className="page-section" data-testid="page-my-bookings">
-      <div className="page-heading"><div><p className="eyebrow dark">YOUR TRIPS</p><h1>My Bookings</h1><p>Review your confirmed seats and waitlist entries.</p></div></div>
-      {notice && <p className="notice" role="status">{notice}</p>}
-      {state === 'loading' && <LoadingState message="Loading your bookings…" />}
-      {state === 'error' && <ErrorState message={error} onRetry={() => setReloadKey((key) => key + 1)} />}
+      <div className="page-heading"><div><p className="eyebrow dark">{t('bookings.eyebrow')}</p><h1>{t('bookings.title')}</h1><p>{t('bookings.intro')}</p></div></div>
+      {noticeKey && <p className="notice" role="status">{t(noticeKey)}</p>}
+      {state === 'loading' && <LoadingState message={t('common.loadingBookings')} />}
+      {state === 'error' && <ErrorState message={t(errorKey)} onRetry={() => setReloadKey((key) => key + 1)} />}
       {state === 'success' && bookings.length === 0 && (
-        <EmptyState title="No bookings yet" message="Find a shuttle and reserve your seat when you are ready."
-          action={<Link className="button primary inline" to="/schedules">Find a shuttle</Link>} />
+        <EmptyState title={t('state.noBookingsTitle')} message={t('state.noBookingsText')}
+          action={<Link className="button primary inline" to="/schedules">{t('bookings.find')}</Link>} />
       )}
       {state === 'success' && bookings.length > 0 && (
         <div className="booking-list">
           {bookings.map((booking) => (
             <article className="booking-card" key={booking.id}>
               <div className="booking-card-main">
-                <p className="eyebrow dark">BOOKING {String(booking.id).padStart(4, '0')}</p>
-                <h2>{booking.originName}<span aria-hidden="true"> → </span>{booking.destinationName}</h2>
-                <p>{formatDeparture(booking.departure_time)}</p>
+                <p className="eyebrow dark">{t('common.bookingRef')} {String(booking.id).padStart(4, '0')}</p>
+                <h2>{displayCampusName(booking.originName, language)}<span aria-hidden="true"> → </span>{displayCampusName(booking.destinationName, language)}</h2>
+                <p>{formatDeparture(booking.departure_time, language)}</p>
               </div>
-              <span className={`booking-status ${booking.status}`}>{statusLabel[booking.status] ?? booking.status}</span>
+              <span className={`booking-status ${booking.status}`}>{t(`status.${booking.status}`)}</span>
               <div className="booking-card-actions">
-                <Link className="button secondary" to={`/schedules/${booking.schedule_id}`}>Schedule details</Link>
+                <Link className="button secondary" to={`/schedules/${booking.schedule_id}`}>{t('bookings.details')}</Link>
                 {booking.status !== 'cancelled' && (
                   <button className="button cancel-button" type="button" disabled={cancelingId === booking.id}
                     onClick={() => handleCancel(booking)}>
-                    {cancelingId === booking.id ? 'Cancelling…' : 'Cancel'}
+                    {cancelingId === booking.id ? t('bookings.cancelling') : t('bookings.cancel')}
                   </button>
                 )}
               </div>
@@ -94,7 +92,7 @@ function MyBookingsPage() {
           ))}
         </div>
       )}
-      {error && state === 'success' && <p className="form-error" role="alert">{error}</p>}
+      {errorKey && state === 'success' && <p className="form-error" role="alert">{t(errorKey)}</p>}
     </section>
   );
 }

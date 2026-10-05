@@ -3,20 +3,24 @@ import EmptyState from '../components/EmptyState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import ScheduleCard from '../components/ScheduleCard.jsx';
+import { useLanguage } from '../contexts/LanguageContext.jsx';
+import { apiErrorKey, displayCampusName } from '../i18n/translations.js';
 import { getCampuses, getSchedules } from '../services/shuttleService.js';
 
 function SchedulesPage() {
+  const { language, t } = useLanguage();
   const [campuses, setCampuses] = useState([]);
   const [schedules, setSchedules] = useState([]);
   const [filters, setFilters] = useState({ originId: '', destinationId: '', date: '' });
   const [state, setState] = useState('loading');
-  const [error, setError] = useState('');
+  const [errorKey, setErrorKey] = useState('');
   const [searched, setSearched] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let ignore = false;
     setState('loading');
+    setErrorKey('');
     Promise.all([getCampuses(), getSchedules()]).then(([campusData, scheduleData]) => {
       if (!ignore) {
         setCampuses(campusData);
@@ -25,7 +29,7 @@ function SchedulesPage() {
       }
     }).catch((reason) => {
       if (!ignore) {
-        setError(reason.message || 'Could not load campus and schedule data.');
+        setErrorKey(apiErrorKey(reason));
         setState('error');
       }
     });
@@ -33,25 +37,26 @@ function SchedulesPage() {
   }, [reloadKey]);
 
   function updateFilter(event) {
+    event.currentTarget.setCustomValidity('');
     const { name, value } = event.target;
     setFilters((current) => ({ ...current, [name]: value }));
   }
 
   async function handleSearch(event) {
     event.preventDefault();
-    if (filters.originId === filters.destinationId) {
-      setError('Choose two different campuses for your trip.');
+    if (filters.originId && filters.originId === filters.destinationId) {
+      setErrorKey('schedule.differentCampuses');
       setState('error');
       return;
     }
-    setError('');
+    setErrorKey('');
     setSearched(true);
     setState('loading');
     try {
       setSchedules(await getSchedules(filters));
       setState('success');
     } catch (reason) {
-      setError(reason.message || 'Could not search shuttle schedules.');
+      setErrorKey(apiErrorKey(reason));
       setState('error');
     }
   }
@@ -60,50 +65,51 @@ function SchedulesPage() {
     setFilters({ originId: '', destinationId: '', date: '' });
     setSearched(false);
     setState('loading');
+    setErrorKey('');
     getSchedules().then((items) => { setSchedules(items); setState('success'); })
-      .catch((reason) => { setError(reason.message); setState('error'); });
+      .catch((reason) => { setErrorKey(apiErrorKey(reason)); setState('error'); });
   }
 
   return (
     <section data-testid="page-schedules">
       <div className="page-heading shuttle-page-heading">
-        <div><p className="eyebrow dark">CAMPUS TRANSIT</p><h1>Find a shuttle</h1><p>Choose your campuses and travel date to see scheduled departures.</p></div>
+        <div><p className="eyebrow dark">{t('schedule.eyebrow')}</p><h1>{t('schedule.title')}</h1><p>{t('schedule.intro')}</p></div>
       </div>
       <form className="search-panel" onSubmit={handleSearch}>
         <div className="search-fields">
           <div className="field">
-            <label htmlFor="originId">From</label>
-            <select id="originId" name="originId" value={filters.originId} onChange={updateFilter} required>
-              <option value="">Select campus</option>
-              {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+            <label htmlFor="originId">{t('schedule.from')}</label>
+            <select id="originId" name="originId" value={filters.originId} onInvalid={(event) => event.currentTarget.setCustomValidity(t('validation.required'))} onChange={updateFilter} required>
+              <option value="">{t('schedule.chooseCampus')}</option>
+              {campuses.map((campus) => <option key={campus.id} value={campus.id}>{displayCampusName(campus.name, language)}</option>)}
             </select>
           </div>
           <div className="route-swap" aria-hidden="true">→</div>
           <div className="field">
-            <label htmlFor="destinationId">To</label>
-            <select id="destinationId" name="destinationId" value={filters.destinationId} onChange={updateFilter} required>
-              <option value="">Select campus</option>
-              {campuses.map((campus) => <option key={campus.id} value={campus.id}>{campus.name}</option>)}
+            <label htmlFor="destinationId">{t('schedule.to')}</label>
+            <select id="destinationId" name="destinationId" value={filters.destinationId} onInvalid={(event) => event.currentTarget.setCustomValidity(t('validation.required'))} onChange={updateFilter} required>
+              <option value="">{t('schedule.chooseCampus')}</option>
+              {campuses.map((campus) => <option key={campus.id} value={campus.id}>{displayCampusName(campus.name, language)}</option>)}
             </select>
           </div>
           <div className="field">
-            <label htmlFor="travel-date">Travel date</label>
-            <input id="travel-date" name="date" type="date" value={filters.date} onChange={updateFilter} required />
+            <label htmlFor="travel-date">{t('schedule.travelDate')}</label>
+            <input id="travel-date" name="date" type="date" value={filters.date} onInvalid={(event) => event.currentTarget.setCustomValidity(t('validation.required'))} onChange={updateFilter} required />
           </div>
-          <button className="button primary search-button" type="submit" disabled={state === 'loading' && campuses.length === 0}>Search schedules</button>
+          <button className="button primary search-button" type="submit" disabled={state === 'loading' && campuses.length === 0}>{t('schedule.search')}</button>
         </div>
       </form>
 
       <div className="results-heading">
-        <div><p className="eyebrow dark">LIVE FROM RMUTL DATABASE</p><h2>{searched ? 'Search results' : 'Scheduled departures'}</h2></div>
-        {searched && <button className="text-button" type="button" onClick={resetSearch}>Clear search</button>}
+        <div><p className="eyebrow dark">{t('schedule.live')}</p><h2>{searched ? t('schedule.results') : t('schedule.departures')}</h2></div>
+        {searched && <button className="text-button" type="button" onClick={resetSearch}>{t('common.clear')}</button>}
       </div>
 
-      {state === 'loading' && <LoadingState message="Loading shuttle schedules…" />}
-      {state === 'error' && <ErrorState message={error} onRetry={() => setReloadKey((key) => key + 1)} />}
+      {state === 'loading' && <LoadingState message={t('common.loadingSchedules')} />}
+      {state === 'error' && <ErrorState message={t(errorKey)} onRetry={() => setReloadKey((key) => key + 1)} />}
       {state === 'success' && schedules.length === 0 && (
-        <EmptyState title={searched ? 'No shuttles match your search' : 'No schedules available'}
-          message={searched ? 'Try another campus pair or travel date.' : 'There are no departures to show right now.'} />
+        <EmptyState title={t(searched ? 'state.noMatchesTitle' : 'state.noSchedulesTitle')}
+          message={t(searched ? 'state.noMatchesText' : 'state.noSchedulesText')} />
       )}
       {state === 'success' && schedules.length > 0 && (
         <div className="schedule-list">{schedules.map((schedule) => <ScheduleCard key={schedule.id} schedule={schedule} />)}</div>

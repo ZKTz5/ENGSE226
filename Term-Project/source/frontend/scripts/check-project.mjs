@@ -37,6 +37,15 @@ await check('Loading, empty, and error states exist', async () => {
   ]);
   return files.every(Boolean);
 });
+await check('Thai is default and bilingual switch is wired without reload', async () => {
+  const [html, app, header, languageContext, dictionary] = await Promise.all([
+    read('index.html'), read('src/App.jsx'), read('src/components/AppHeader.jsx'),
+    read('src/contexts/LanguageContext.jsx'), read('src/i18n/translations.js'),
+  ]);
+  return html.includes('<html lang="th">') && app.includes('<LanguageProvider>')
+    && header.includes('toggleLanguage') && header.includes('ไทย') && header.includes('EN')
+    && languageContext.includes("'th'") && dictionary.includes("export function translate");
+});
 await check('Document identifies the RMUTL Shuttle app', async () => {
   const html = await read('index.html');
   return html.includes('RMUTL Shuttle Booking');

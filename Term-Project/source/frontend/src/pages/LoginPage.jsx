@@ -1,25 +1,27 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ApiError } from '../services/apiClient.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useLanguage } from '../contexts/LanguageContext.jsx';
+import { apiErrorKey, displayCampusName } from '../i18n/translations.js';
 import { isInstitutionalEmail } from '../utils/institutionalEmail.js';
 
 function LoginPage() {
   const { session, signIn } = useAuth();
+  const { language, t } = useLanguage();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [state, setState] = useState('idle');
-  const [error, setError] = useState('');
+  const [errorKey, setErrorKey] = useState('');
 
   if (session) {
     return (
       <section className="login-layout">
         <div className="login-card">
-          <p className="eyebrow dark">SIGNED IN</p>
-          <h1>Welcome back, {session.user.name}</h1>
-          <p>Your RMUTL account is ready to use.</p>
-          <Link className="button primary inline" to="/">Go to dashboard</Link>
+          <p className="eyebrow dark">{t('login.signedIn')}</p>
+          <h1>{t('login.welcome', { name: session.user.name })}</h1>
+          <p>{t('login.ready')}</p>
+          <Link className="button primary inline" to="/">{t('login.goHome')}</Link>
         </div>
       </section>
     );
@@ -27,13 +29,13 @@ function LoginPage() {
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setError('');
+    setErrorKey('');
     if (!email.trim() || !password) {
-      setError('Enter your institutional email and password.');
+      setErrorKey('login.required');
       return;
     }
     if (!isInstitutionalEmail(email)) {
-      setError('Use your institutional email ending in @live.rmutl.ac.th.');
+      setErrorKey('login.invalidDomain');
       return;
     }
     setState('loading');
@@ -42,7 +44,7 @@ function LoginPage() {
       setState('success');
       navigate('/', { replace: true });
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Unable to sign in. Please try again.');
+      setErrorKey(apiErrorKey(reason));
       setState('idle');
     }
   }
@@ -51,30 +53,33 @@ function LoginPage() {
     <section className="login-layout" data-testid="page-login">
       <div className="login-aside">
         <p className="eyebrow">RMUTL SHUTTLE</p>
-        <h1>One university.<br />Three connected campuses.</h1>
-        <p>Sign in with your institutional account to access your RMUTL shuttle account.</p>
-        <span className="login-route-graphic" aria-hidden="true">DS <i /> JY <i /> CM</span>
+        <h1>{t('dashboard.headline')}</h1>
+        <p>{t('dashboard.intro')}</p>
+        <span className="login-route-graphic" aria-hidden="true">{displayCampusName('Jed Yod', language)} <i /> {displayCampusName('Doi Saket', language)}</span>
       </div>
       <form className="login-card" onSubmit={handleSubmit} noValidate>
-        <p className="eyebrow dark">YOUR ACCOUNT</p>
-        <h2>Sign in</h2>
-        <p className="muted-copy">Use your @live.rmutl.ac.th email address.</p>
+        <p className="eyebrow dark">{t('login.eyebrow')}</p>
+        <h2>{t('login.title')}</h2>
+        <p className="muted-copy">{t('login.emailHelp')}</p>
         <div className="field">
-          <label htmlFor="login-email">Institutional email</label>
+          <label htmlFor="login-email">{t('login.email')}</label>
           <input id="login-email" autoComplete="username" type="email" value={email}
-            onChange={(event) => setEmail(event.target.value)} placeholder="name@live.rmutl.ac.th" required />
+            onInvalid={(event) => event.currentTarget.setCustomValidity(t('validation.required'))}
+            onChange={(event) => { event.currentTarget.setCustomValidity(''); setEmail(event.target.value); }}
+            placeholder={t('login.emailPlaceholder')} required />
         </div>
         <div className="field">
-          <label htmlFor="login-password">Password</label>
+          <label htmlFor="login-password">{t('login.password')}</label>
           <input id="login-password" autoComplete="current-password" type="password" value={password}
-            onChange={(event) => setPassword(event.target.value)} required />
+            onInvalid={(event) => event.currentTarget.setCustomValidity(t('validation.required'))}
+            onChange={(event) => { event.currentTarget.setCustomValidity(''); setPassword(event.target.value); }} required />
         </div>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        {state === 'success' && <p className="form-success" role="status">Signed in successfully.</p>}
+        {errorKey && <p className="form-error" role="alert">{t(errorKey)}</p>}
+        {state === 'success' && <p className="form-success" role="status">{t('login.success')}</p>}
         <button className="button primary login-submit" type="submit" disabled={state === 'loading'}>
-          {state === 'loading' ? 'Signing in…' : 'Sign in'}
+          {state === 'loading' ? t('login.submitting') : t('login.submit')}
         </button>
-        <p className="login-footnote">Shuttle schedules can be explored without signing in. <Link to="/schedules">Browse routes</Link></p>
+        <p className="login-footnote">{t('login.browse')} <Link to="/schedules">{t('login.browseLink')}</Link></p>
       </form>
     </section>
   );

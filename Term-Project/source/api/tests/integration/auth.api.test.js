@@ -30,8 +30,9 @@ describe('POST /api/auth/login', () => {
     'student@live.rmutl.ac.th.attacker.example',
     'student@@live.rmutl.ac.th',
   ])('rejects email outside the exact institutional domain: %s', async (email) => {
-    await request(app).post('/api/auth/login')
+    const response = await request(app).post('/api/auth/login')
       .send({ ...credentials, email }).expect(400);
+    expect(response.body.code).toBe('invalid_email_domain');
   });
 
   test('validates missing fields and rejects invalid credentials', async () => {

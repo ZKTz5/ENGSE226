@@ -37,6 +37,7 @@ describe('campus and schedule API', () => {
     'date=2026-02-30', 'date=2026/10/06', 'originId=1&destinationId=1',
   ])('rejects invalid schedule filters: %s', async (query) => {
     const response = await request(app).get(`/api/schedules?${query}`).expect(400);
+    expect(response.body.code).toBe('invalid_schedule_filters');
     expect(response.body.details.length).toBeGreaterThan(0);
   });
 

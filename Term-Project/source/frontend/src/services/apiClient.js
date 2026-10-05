@@ -12,19 +12,20 @@ export function setApiAuthToken(token) {
 
 /** error ที่รู้ว่ามาจาก API พร้อม status ที่ได้กลับมา */
 export class ApiError extends Error {
-  constructor(message, status) {
+  constructor(message, status, code = null) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.code = code;
   }
 }
 
 async function parseError(response) {
   try {
     const body = await response.json();
-    return body.error ?? `คำขอไม่สำเร็จ (${response.status})`;
+    return { message: body.error ?? `คำขอไม่สำเร็จ (${response.status})`, code: body.code ?? null };
   } catch {
-    return `คำขอไม่สำเร็จ (${response.status})`;
+    return { message: `คำขอไม่สำเร็จ (${response.status})`, code: null };
   }
 }
 
@@ -48,11 +49,12 @@ export async function apiFetch(path, options = {}) {
     });
   } catch {
     // fetch โยน error เมื่อต่อเซิร์ฟเวอร์ไม่ได้เลย เช่น API ไม่ได้เปิด
-    throw new ApiError('ติดต่อเซิร์ฟเวอร์ไม่ได้ — ตรวจว่าเปิด API ที่พอร์ต 3001 แล้วหรือยัง', 0);
+    throw new ApiError('API connection failed', 0, 'network_error');
   }
 
   if (!response.ok) {
-    throw new ApiError(await parseError(response), response.status);
+    const error = await parseError(response);
+    throw new ApiError(error.message, response.status, error.code);
   }
 
   if (response.status === 204) return null;

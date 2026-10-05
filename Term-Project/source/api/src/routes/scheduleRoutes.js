@@ -8,7 +8,7 @@ const router = Router();
 router.get('/', (req, res) => {
   const { errors, filters } = validateScheduleFilters(req.query);
   if (errors.length) {
-    return res.status(400).json({ error: 'Invalid schedule filters', details: errors });
+    return res.status(400).json({ code: 'invalid_schedule_filters', error: 'Invalid schedule filters', details: errors });
   }
   res.json(scheduleService.getScheduleList(filters));
 });
@@ -16,7 +16,7 @@ router.get('/', (req, res) => {
 // GET /api/schedules/:id
 router.get('/:id', (req, res) => {
   const found = scheduleService.getScheduleById(Number(req.params.id));
-  if (!found) return res.status(404).json({ error: 'ไม่พบตาราง' });
+  if (!found) return res.status(404).json({ code: 'schedule_not_found', error: 'ไม่พบตาราง' });
   res.json(found);
 });
 

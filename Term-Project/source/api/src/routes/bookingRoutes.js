@@ -16,7 +16,7 @@ router.get('/my', (req, res) => {
 router.post('/', (req, res) => {
   const scheduleId = Number(req.body?.scheduleId ?? req.query?.scheduleId);
   if (!Number.isInteger(scheduleId) || scheduleId <= 0) {
-    return res.status(400).json({ error: 'กรุณาระบุ scheduleId' });
+    return res.status(400).json({ code: 'missing_schedule_id', error: 'กรุณาระบุ scheduleId' });
   }
   const result = bookingService.createBooking({ userId: req.user.id, scheduleId });
   if (!result.ok) {
@@ -24,7 +24,7 @@ router.post('/', (req, res) => {
       result.error === 'expired_schedule' ? 'ตารางนี้หมดอายุแล้ว ไม่สามารถจองได้'
       : result.error === 'duplicate_booking' ? 'คุณจองตารางนี้แล้ว'
       : result.error ?? 'การจองไม่สำเร็จ';
-    return res.status(result.status).json({ error: message });
+    return res.status(result.status).json({ code: result.error, error: message });
   }
   res.status(201).json(result.booking);
 });
@@ -35,10 +35,10 @@ router.delete('/:id', (req, res) => {
   const result = bookingService.cancelBooking(bookingId, { userId: req.user.id });
   if (!result.ok) {
     const message =
-      result.error === 'already_cancelled' ? 'การจองนี้ถูกลบแล้ว'
-      : result.error === 'forbidden' ? 'คุณไม่มีสิทธิ์ลบรายการนี้'
-      : result.error ?? 'การลบไม่สำเร็จ';
-    return res.status(result.status).json({ error: message });
+      result.error === 'already_cancelled' ? 'การจองนี้ถูกยกเลิกแล้ว'
+      : result.error === 'forbidden' ? 'คุณไม่มีสิทธิ์ยกเลิกรายการนี้'
+      : result.error ?? 'การยกเลิกไม่สำเร็จ';
+    return res.status(result.status).json({ code: result.error, error: message });
   }
   res.status(200).json({
     cancelledId: result.cancelledId,
@@ -52,7 +52,7 @@ router.delete('/:id/cancel-admin', requireRole('admin'), (req, res) => {
   const bookingId = Number(req.params.id);
   const result = bookingService.cancelBooking(bookingId, { userId: null, isAdmin: true });
   if (!result.ok) {
-    return res.status(result.status).json({ error: result.error ?? 'การลบไม่สำเร็จ' });
+    return res.status(result.status).json({ code: result.error, error: result.error ?? 'การยกเลิกไม่สำเร็จ' });
   }
   res.status(200).json({
     cancelledId: result.cancelledId,

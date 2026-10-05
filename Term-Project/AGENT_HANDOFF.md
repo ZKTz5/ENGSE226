@@ -347,6 +347,20 @@ Jed Yod and Doi Saket only. Deployment checks and evidence remain.
   registration endpoint or public self-signup flow.
 - Verified after the change: backend tests 49/49 and frontend tests 12/12.
 
+### Thai/English localization
+
+- Added one shared translation dictionary and React language context. Thai is the
+  first-visit default (`index.html` and context); the `ไทย | EN` switch changes
+  language immediately, sets the document language, and remembers preference
+  through optional local storage with a safe Thai fallback.
+- Active login, dashboard, search/list, detail, bookings, shared state
+  components, navigation, API error messages, campus labels, and date formatting
+  use the shared translations. Missing Thai entries fall back to English, then
+  to the key; active page components are not duplicated by language.
+- API error codes remain stable while display text is translated client-side.
+- Verification: backend 49/49, frontend 16/16, frontend production build passed;
+  API checks 4/4 and frontend checks 5/5 passed.
+
 ## Sprint 1–4 Gap Analysis (2026-10-06)
 
 | Sprint | Already implemented | Remaining at start of this phase |

@@ -2,20 +2,20 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import ErrorState from '../components/ErrorState.jsx';
 import LoadingState from '../components/LoadingState.jsx';
-import { formatDeparture } from '../components/ScheduleCard.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { useLanguage } from '../contexts/LanguageContext.jsx';
+import { apiErrorKey, displayCampusName, formatDeparture } from '../i18n/translations.js';
 import { createBooking, getSchedule } from '../services/shuttleService.js';
-
-const statusLabel = { active: 'Seats available', full: 'Full', waitlist: 'Waitlist', expired: 'Departed' };
 
 function ScheduleDetailPage() {
   const { scheduleId } = useParams();
   const navigate = useNavigate();
   const { session } = useAuth();
+  const { language, t } = useLanguage();
   const [schedule, setSchedule] = useState(null);
   const [state, setState] = useState('loading');
-  const [error, setError] = useState('');
-  const [bookingError, setBookingError] = useState('');
+  const [errorKey, setErrorKey] = useState('');
+  const [bookingErrorKey, setBookingErrorKey] = useState('');
   const [bookingResult, setBookingResult] = useState(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -26,7 +26,7 @@ function ScheduleDetailPage() {
     getSchedule(scheduleId).then((item) => {
       if (!ignore) { setSchedule(item); setState('success'); }
     }).catch((reason) => {
-      if (!ignore) { setError(reason.message || 'Could not load this shuttle.'); setState('error'); }
+      if (!ignore) { setErrorKey(apiErrorKey(reason)); setState('error'); }
     });
     return () => { ignore = true; };
   }, [scheduleId, reloadKey]);
@@ -37,14 +37,14 @@ function ScheduleDetailPage() {
       return;
     }
     setBookingLoading(true);
-    setBookingError('');
+    setBookingErrorKey('');
     setBookingResult(null);
     try {
       const created = await createBooking(schedule.id);
       setBookingResult(created);
       getSchedule(scheduleId).then(setSchedule).catch(() => {});
     } catch (reason) {
-      setBookingError(reason.message || 'Could not place this booking.');
+      setBookingErrorKey(apiErrorKey(reason));
     } finally {
       setBookingLoading(false);
     }
@@ -52,42 +52,42 @@ function ScheduleDetailPage() {
 
   return (
     <section data-testid="page-schedule-detail">
-      <Link className="back-link" to="/schedules">← All schedules</Link>
-      {state === 'loading' && <LoadingState message="Loading shuttle details…" />}
-      {state === 'error' && <ErrorState message={error} onRetry={() => setReloadKey((key) => key + 1)} />}
+      <Link className="back-link" to="/schedules">← {t('common.backSchedules')}</Link>
+      {state === 'loading' && <LoadingState message={t('common.loadingDetails')} />}
+      {state === 'error' && <ErrorState message={t(errorKey)} onRetry={() => setReloadKey((key) => key + 1)} />}
       {state === 'success' && schedule && (
         <article className="detail-hero">
-          <p className="eyebrow dark">SHUTTLE {String(schedule.id).padStart(3, '0')}</p>
-          <h1>{schedule.originName}<span aria-hidden="true"> → </span>{schedule.destinationName}</h1>
-          <p className="detail-departure">{formatDeparture(schedule.departure_time)}</p>
+          <p className="eyebrow dark">{t('common.schedule')} {String(schedule.id).padStart(3, '0')}</p>
+          <h1>{displayCampusName(schedule.originName, language)}<span aria-hidden="true"> → </span>{displayCampusName(schedule.destinationName, language)}</h1>
+          <p className="detail-departure">{formatDeparture(schedule.departure_time, language)}</p>
           <div className="detail-facts">
-            <div><span>Departure</span><strong>{formatDeparture(schedule.departure_time)}</strong></div>
-            <div><span>Capacity</span><strong>{schedule.capacity} passengers</strong></div>
-            <div><span>Confirmed</span><strong>{schedule.confirmedCount}</strong></div>
-            <div><span>Available seats</span><strong>{schedule.availableSeats}</strong></div>
+            <div><span>{t('common.departure')}</span><strong>{formatDeparture(schedule.departure_time, language)}</strong></div>
+            <div><span>{t('common.capacity')}</span><strong>{schedule.capacity} {t('common.passengers')}</strong></div>
+            <div><span>{t('common.confirmed')}</span><strong>{schedule.confirmedCount}</strong></div>
+            <div><span>{t('common.availableSeats')}</span><strong>{schedule.availableSeats}</strong></div>
           </div>
-          <p className={`detail-status ${schedule.status}`} role="status">{statusLabel[schedule.status] ?? schedule.status}</p>
-          {schedule.status === 'expired' && <p className="muted-copy">This shuttle has already departed and cannot be booked.</p>}
-          {schedule.status === 'full' && <p className="muted-copy">This shuttle is full. You can join the waitlist.</p>}
+          <p className={`detail-status ${schedule.status}`} role="status">{t(`status.${schedule.status}`)}</p>
+          {schedule.status === 'expired' && <p className="muted-copy">{t('detail.expiredHelp')}</p>}
+          {schedule.status === 'full' && <p className="muted-copy">{t('detail.fullHelp')}</p>}
           {bookingResult && (
             <div className={`booking-outcome ${bookingResult.status}`} role="status">
               {bookingResult.status === 'waitlisted'
-                ? 'You are on the waitlist. We will promote the first waiting passenger when a seat opens.'
-                : 'Your shuttle seat is confirmed.'}
-              {' '}<Link to="/bookings">View My Bookings</Link>
+                ? <>{t('ticket.waitlistStatus')} {t('ticket.waitlistHelp')}</>
+                : t('ticket.confirmedStatus')}
+              {' '}<Link to="/bookings">{t('common.openBookings')}</Link>
             </div>
           )}
-          {bookingError && <p className="form-error" role="alert">{bookingError}</p>}
+          {bookingErrorKey && <p className="form-error" role="alert">{t(bookingErrorKey)}</p>}
           {schedule.status !== 'expired' && (
             session ? (
               <button className="button primary booking-action" type="button" onClick={handleBooking} disabled={bookingLoading}>
-                {bookingLoading ? 'Submitting…' : schedule.status === 'full' || schedule.status === 'waitlist' ? 'Join waitlist' : 'Book this shuttle'}
+                {bookingLoading ? t('detail.submitting') : schedule.status === 'full' || schedule.status === 'waitlist' ? t('detail.joinWaitlist') : t('detail.book')}
               </button>
             ) : (
-              <Link className="button primary inline booking-action" to="/login">Sign in to book</Link>
+              <Link className="button primary inline booking-action" to="/login">{t('detail.signInToBook')}</Link>
             )
           )}
-          <Link className="button primary inline" to="/schedules">Back to schedules</Link>
+          <Link className="button primary inline" to="/schedules">{t('common.returnSchedules')}</Link>
         </article>
       )}
     </section>
