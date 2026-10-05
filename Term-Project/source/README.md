@@ -112,12 +112,12 @@ npm run coverage         # รายงานว่าบรรทัดไห�
 | สิทธิ์: สร้างและดูการจองต้องใช้ JWT | `api/src/middleware/auth.js` · `api/src/routes/bookingRoutes.js` |
 | secret มาจาก env · production ไม่มี secret = ไม่ start | `api/src/config.js` · `api/.env.example` |
 
-บัญชีทดสอบใน schema ใช้รหัสผ่าน `rmutl1234` สำหรับ development เท่านั้น
-ก่อนใช้งานจริง ให้ตั้ง `JWT_SECRET` และสร้างบัญชีด้วย `npm run create-user --prefix api -- <อีเมล@rmutl.ac.th> <รหัสผ่าน> [ชื่อ] [user|admin]`.
+บัญชีทดสอบใน schema ใช้รหัสผ่าน `rmutl1234` สำหรับ development เท่านั้น บัญชีต้องลงท้ายด้วย `@live.rmutl.ac.th`; แอปนี้เป็นระบบ login-only และไม่มีหน้าสมัครสมาชิกหรือ public self-signup
+ก่อนใช้งานจริง ให้ตั้ง `JWT_SECRET` และให้ผู้ดูแลสร้างบัญชีด้วย `npm run create-user --prefix api -- <อีเมล@live.rmutl.ac.th> <รหัสผ่าน> [ชื่อ] [user|admin]`.
 
 ```bash
 curl -X POST localhost:3001/api/auth/login -H "Content-Type: application/json" \
-  -d '{"email":"tan.khanit@rmutl.ac.th","password":"rmutl1234"}'
+  -d '{"email":"tan.khanit@live.rmutl.ac.th","password":"rmutl1234"}'
 # → { "token": "eyJ...", "user": { ... } }
 
 curl 'localhost:3001/api/schedules?originId=1&destinationId=2'

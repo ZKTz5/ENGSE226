@@ -13,7 +13,7 @@ router.post('/login', (req, res) => {
   if (!result.ok) {
     const body =
       result.error === 'invalid_email_domain'
-        ? { error: 'อีเมลต้องลงท้ายด้วย @rmutl.ac.th' }
+        ? { error: 'อีเมลต้องลงท้ายด้วย @live.rmutl.ac.th' }
         : { error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' };
     return res.status(result.status).json(body);
   }

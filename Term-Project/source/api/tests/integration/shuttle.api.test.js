@@ -19,7 +19,7 @@ describe('RMUTL shuttle API', () => {
     expect(denied.status).toBe(400);
 
     const accepted = await request(app).post('/api/auth/login').send({
-      email: 'tan.khanit@rmutl.ac.th', password,
+      email: 'tan.khanit@live.rmutl.ac.th', password,
     });
     expect(accepted.status).toBe(200);
     expect(accepted.body.token.split('.')).toHaveLength(3);
@@ -44,7 +44,7 @@ describe('RMUTL shuttle API', () => {
 
   test('protects bookings, rejects duplicates, and allows the owner to cancel', async () => {
     await request(app).post('/api/bookings').send({ scheduleId: 4 }).expect(401);
-    const token = await login('tan.khanit@rmutl.ac.th');
+    const token = await login('tan.khanit@live.rmutl.ac.th');
     const headers = { Authorization: `Bearer ${token}` };
 
     const booking = await request(app).post('/api/bookings').set(headers).send({ scheduleId: 4 }).expect(201);
@@ -57,9 +57,9 @@ describe('RMUTL shuttle API', () => {
 
   test('promotes waitlisted bookings in FIFO order when a confirmed booking is cancelled', async () => {
     getDb().prepare('UPDATE schedules SET capacity = 1, available_seats = 1 WHERE id = 4').run();
-    const firstToken = await login('tan.khanit@rmutl.ac.th');
-    const secondToken = await login('patchara.w@rmutl.ac.th');
-    const thirdToken = await login('anon.p@rmutl.ac.th');
+    const firstToken = await login('tan.khanit@live.rmutl.ac.th');
+    const secondToken = await login('patchara.w@live.rmutl.ac.th');
+    const thirdToken = await login('anon.p@live.rmutl.ac.th');
     const create = (token) => request(app).post('/api/bookings')
       .set('Authorization', `Bearer ${token}`).send({ scheduleId: 4 });
 
@@ -87,10 +87,10 @@ describe('RMUTL shuttle API', () => {
   test('rejects cancellation by another user and does not promote for a waitlisted cancellation', async () => {
     getDb().prepare('UPDATE schedules SET capacity = 1, available_seats = 1 WHERE id = 4').run();
     const emails = [
-      'tan.khanit@rmutl.ac.th',
-      'patchara.w@rmutl.ac.th',
-      'anon.p@rmutl.ac.th',
-      'wanchalern.p@rmutl.ac.th',
+      'tan.khanit@live.rmutl.ac.th',
+      'patchara.w@live.rmutl.ac.th',
+      'anon.p@live.rmutl.ac.th',
+      'wanchalern.p@live.rmutl.ac.th',
     ];
     const tokens = await Promise.all(emails.map(login));
     const create = (token) => request(app).post('/api/bookings')
@@ -115,12 +115,12 @@ describe('RMUTL shuttle API', () => {
   test('concurrent distinct users cannot overbook the last seat', async () => {
     getDb().prepare('UPDATE schedules SET capacity = 1, available_seats = 1 WHERE id = 4').run();
     const emails = [
-      'tan.khanit@rmutl.ac.th',
-      'patchara.w@rmutl.ac.th',
-      'anon.p@rmutl.ac.th',
-      'wanchalern.p@rmutl.ac.th',
-      'wichapong.r@rmutl.ac.th',
-      'nill.rattan@rmutl.ac.th',
+      'tan.khanit@live.rmutl.ac.th',
+      'patchara.w@live.rmutl.ac.th',
+      'anon.p@live.rmutl.ac.th',
+      'wanchalern.p@live.rmutl.ac.th',
+      'wichapong.r@live.rmutl.ac.th',
+      'nill.rattan@live.rmutl.ac.th',
     ];
     const tokens = await Promise.all(emails.map(login));
     const responses = await Promise.all(tokens.map((token) => request(app).post('/api/bookings')

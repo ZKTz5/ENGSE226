@@ -4,7 +4,7 @@ import { createApp } from '../../src/app.js';
 import { loadSeed } from '../../src/services/shuttleDb.js';
 
 const app = createApp();
-const credentials = { email: 'tan.khanit@rmutl.ac.th', password: 'rmutl1234' };
+const credentials = { email: 'tan.khanit@live.rmutl.ac.th', password: 'rmutl1234' };
 
 beforeEach(async () => loadSeed());
 
@@ -15,9 +15,23 @@ describe('POST /api/auth/login', () => {
     expect(response.body.user.email).toBe(credentials.email);
   });
 
-  test('rejects a non-institutional email domain', async () => {
+  test('accepts case-insensitive @live.rmutl.ac.th email addresses', async () => {
+    const response = await request(app).post('/api/auth/login').send({
+      ...credentials,
+      email: 'TAN.KHANIT@LIVE.RMUTL.AC.TH',
+    }).expect(200);
+    expect(response.body.user.email).toBe(credentials.email);
+  });
+
+  test.each([
+    'student@example.com',
+    'student@rmutl.ac.th',
+    'student@sub.live.rmutl.ac.th',
+    'student@live.rmutl.ac.th.attacker.example',
+    'student@@live.rmutl.ac.th',
+  ])('rejects email outside the exact institutional domain: %s', async (email) => {
     await request(app).post('/api/auth/login')
-      .send({ ...credentials, email: 'student@example.com' }).expect(400);
+      .send({ ...credentials, email }).expect(400);
   });
 
   test('validates missing fields and rejects invalid credentials', async () => {

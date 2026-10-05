@@ -4,8 +4,8 @@ import { loadSeed, upsertUser } from '../src/services/shuttleDb.js';
 import { hashPassword } from '../src/utils/password.js';
 
 const [email, password, name = 'RMUTL User', role = 'user'] = process.argv.slice(2);
-if (!email || !email.trim().toLowerCase().endsWith('@rmutl.ac.th') || !password || password.length < 8 || !['user', 'admin'].includes(role)) {
-  console.error('Usage: npm run create-user -- <name@rmutl.ac.th> <password (8+ chars)> [name] [user|admin]');
+if (!email || !/^[^@\s]+@live\.rmutl\.ac\.th$/i.test(email.trim()) || !password || password.length < 8 || !['user', 'admin'].includes(role)) {
+  console.error('Usage: npm run create-user -- <name@live.rmutl.ac.th> <password (8+ chars)> [name] [user|admin]');
   process.exit(1);
 }
 

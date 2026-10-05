@@ -19,10 +19,10 @@ describe('shuttleService', () => {
     const result = { token: 'jwt.token.value', user: { id: 1, name: 'Student' } };
     fetch.mockResolvedValue(response(result));
 
-    await expect(login({ email: 'student@rmutl.ac.th', password: 'secret' })).resolves.toEqual(result);
+    await expect(login({ email: 'student@live.rmutl.ac.th', password: 'secret' })).resolves.toEqual(result);
     expect(fetch).toHaveBeenCalledWith('http://localhost:3001/api/auth/login', expect.objectContaining({
       method: 'POST',
-      body: JSON.stringify({ email: 'student@rmutl.ac.th', password: 'secret' }),
+      body: JSON.stringify({ email: 'student@live.rmutl.ac.th', password: 'secret' }),
     }));
   });
 

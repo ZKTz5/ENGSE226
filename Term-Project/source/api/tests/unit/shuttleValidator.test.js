@@ -3,11 +3,11 @@ import { validateLoginInput, validateScheduleFilters } from '../../src/validator
 
 describe('validateLoginInput', () => {
   test('accepts a well-formed login payload', () => {
-    expect(validateLoginInput({ email: 'student@rmutl.ac.th', password: 'secret' })).toEqual([]);
+    expect(validateLoginInput({ email: 'student@live.rmutl.ac.th', password: 'secret' })).toEqual([]);
   });
 
   test('reports missing or malformed login fields', () => {
-    expect(validateLoginInput({ email: 'student@rmutl.ac.th' })).toContain('กรุณาระบุรหัสผ่าน');
+    expect(validateLoginInput({ email: 'student@live.rmutl.ac.th' })).toContain('กรุณาระบุรหัสผ่าน');
     expect(validateLoginInput({ email: 'invalid', password: '' })).toHaveLength(2);
     expect(validateLoginInput(null)).toEqual(['ต้องส่งอีเมลและรหัสผ่าน']);
   });

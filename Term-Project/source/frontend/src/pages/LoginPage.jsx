@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ApiError } from '../services/apiClient.js';
 import { useAuth } from '../contexts/AuthContext.jsx';
+import { isInstitutionalEmail } from '../utils/institutionalEmail.js';
 
 function LoginPage() {
   const { session, signIn } = useAuth();
@@ -31,8 +32,8 @@ function LoginPage() {
       setError('Enter your institutional email and password.');
       return;
     }
-    if (!email.trim().toLowerCase().endsWith('@rmutl.ac.th')) {
-      setError('Use your institutional email ending in @rmutl.ac.th.');
+    if (!isInstitutionalEmail(email)) {
+      setError('Use your institutional email ending in @live.rmutl.ac.th.');
       return;
     }
     setState('loading');
@@ -57,11 +58,11 @@ function LoginPage() {
       <form className="login-card" onSubmit={handleSubmit} noValidate>
         <p className="eyebrow dark">YOUR ACCOUNT</p>
         <h2>Sign in</h2>
-        <p className="muted-copy">Use your @rmutl.ac.th email address.</p>
+        <p className="muted-copy">Use your @live.rmutl.ac.th email address.</p>
         <div className="field">
           <label htmlFor="login-email">Institutional email</label>
           <input id="login-email" autoComplete="username" type="email" value={email}
-            onChange={(event) => setEmail(event.target.value)} placeholder="name@rmutl.ac.th" required />
+            onChange={(event) => setEmail(event.target.value)} placeholder="name@live.rmutl.ac.th" required />
         </div>
         <div className="field">
           <label htmlFor="login-password">Password</label>

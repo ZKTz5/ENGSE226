@@ -46,7 +46,7 @@ describe('campus and schedule API', () => {
     expect(expired.body.status).toBe('expired');
 
     const login = await request(app).post('/api/auth/login').send({
-      email: 'tan.khanit@rmutl.ac.th', password: 'rmutl1234',
+      email: 'tan.khanit@live.rmutl.ac.th', password: 'rmutl1234',
     }).expect(200);
     await request(app).post('/api/bookings')
       .set('Authorization', `Bearer ${login.body.token}`)

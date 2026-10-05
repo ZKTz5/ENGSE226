@@ -11,7 +11,7 @@ All stated Sprint 1–4 functional requirements are implemented in the current l
 
 | Sprint requirement | Status | Evidence / notes |
 |---|---|---|
-| Sprint 1: institutional email login (`@rmutl.ac.th`) | ✅ | `POST /api/auth/login`; email normalized and domain checked. |
+| Sprint 1: exact `@live.rmutl.ac.th` institutional login | ✅ | `POST /api/auth/login`; domain is validated case-insensitively after normalization. No public signup exists. |
 | Required login fields and clear invalid-domain/credential errors | ✅ | Login validator and auth integration tests; invalid credentials return a generic 401. |
 | JWT issued and used; protected endpoints | ✅ | Bearer JWT middleware protects booking routes; frontend stores token in memory and attaches it to API requests. |
 | Password hashing | ✅ | Existing `node:crypto` scrypt utility reused. |
@@ -38,7 +38,7 @@ All stated Sprint 1–4 functional requirements are implemented in the current l
 |---|---|---|
 | `GET /api` | Public | API identity response. |
 | `GET /api/health` | Public | Reports API and DB connectivity for deployment health checks. |
-| `POST /api/auth/login` | Public | Validates fields/domain/credentials and returns JWT plus user identity. No registration endpoint is required by the project contract; accounts are seeded or created by the admin script. |
+| `POST /api/auth/login` | Public | Validates fields/domain/credentials and returns JWT plus user identity. The application is login-only; accounts are seeded or provisioned by an operator with the account script. |
 | `GET /api/campuses` | Public | Returns supported campus reference data. |
 | `GET /api/schedules?originId=&destinationId=&date=` | Public | Validates optional filters, returns current counts, seats, and derived status. Invalid filters return 400 with details. |
 | `GET /api/schedules/:id` | Public | Returns a schedule detail or 404. |
@@ -61,7 +61,8 @@ All stated Sprint 1–4 functional requirements are implemented in the current l
 
 Freshly executed from `Term-Project/source` on 2026-10-06:
 
-- `npm test` — **PASS**: backend 44 tests across 7 files; frontend 7 tests across 2 files.
+- Current after Phase 2: `npm test --prefix api` — **PASS**, 49 tests across 7 files; `npm test --prefix frontend` — **PASS**, 12 tests across 3 files.
+- Prior full-suite baseline before the approved domain/localization changes: `npm test` — **PASS**, backend 44 and frontend 7.
 - `npm run build` — **PASS**: Vite production bundle generated; root build completed API dependency installation.
 - Handoff also records `npm run check` as **PASS** (API checks 4/4 and frontend checks 4/4). It was not rerun during this audit.
 - Integration coverage includes login/domain/missing fields, campus and schedule retrieval/filtering, malformed filter validation, departure-based expiry, booking/cancel/rebook, duplicate rejection, ownership enforcement, FIFO tie breaking, waitlisted cancellation, and concurrent competition for one seat.
@@ -72,7 +73,7 @@ Freshly executed from `Term-Project/source` on 2026-10-06:
 2. Open the Vite URL. Show the dashboard loading live upcoming schedules.
 3. Open **Schedules**, choose different origin/destination campuses and a travel date, and search. Demonstrate that choosing the same campus is rejected by the UI/API validation.
 4. Open a schedule detail and point out departure, capacity, confirmed count, available seats, and status.
-5. Sign in using a seeded demo account, for example `tan.khanit@rmutl.ac.th` / `rmutl1234` (development/demo credentials only).
+5. Sign in using a seeded demo account, for example `tan.khanit@live.rmutl.ac.th` / `rmutl1234` (development/demo credentials only; the app has no signup flow).
 6. Book an available trip, show the confirmed notice, then open **My Bookings** and cancel it.
 7. For the waitlist demo, reduce a seeded schedule capacity to one in a disposable development DB, sign in as two distinct seeded accounts, book once with each, and cancel the confirmed booking. Show the second account promoted. Restore/reset the demo DB after the demonstration.
 8. Show an expired schedule and its unavailable booking action. If the seeded expired dates no longer match the current clock, set one departure time to the past in a disposable demo DB.

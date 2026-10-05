@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { config } from '../../src/config.js';
 
 /** Seeded development account used by shuttle API tests. */
-export const TEST_USER = { email: 'tan.khanit@rmutl.ac.th', password: 'rmutl1234' };
+export const TEST_USER = { email: 'tan.khanit@live.rmutl.ac.th', password: 'rmutl1234' };
 
 /** เข้าสู่ระบบจริงผ่าน API แล้วคืน token */
 export async function loginAsUser(app, credentials = TEST_USER) {

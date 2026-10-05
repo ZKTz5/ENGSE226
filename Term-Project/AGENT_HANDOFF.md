@@ -63,7 +63,8 @@ final domain must use Shuttle-specific concepts and naming.
 
 ### Authentication
 
-- Login using institutional email ending with `@rmutl.ac.th`
+- Login using institutional email ending exactly with `@live.rmutl.ac.th`
+- Domain validation is case-insensitive; the app is login-only and has no public registration flow.
 - Return and use a JWT token
 - Validate required fields
 - Show clear errors for invalid domain and invalid credentials
@@ -270,17 +271,15 @@ CREATE UNIQUE INDEX idx_bookings_active_user_schedule
 
 ## Proposed API Contract
 
-- `POST /api/auth/login`: `{ email, password }`; validates the `@rmutl.ac.th` domain and returns a JWT.
+- `POST /api/auth/login`: `{ email, password }`; validates the `@live.rmutl.ac.th` domain and returns a JWT.
 - `GET /api/schedules`: Query params: `originId`, `destinationId`, `date`
 - `GET /api/campuses`: list of supported campuses
 
 Note on authentication:
 
-- `POST /api/auth/register` is NOT required by the RMUTL Shuttle spec and is NOT
-  in the existing API. The spec only requires institutional-email login.
-- If registration is NOT implemented, `users` must be seeded directly via
-  `schema.sql` or the `create-user` script so a real login is possible in
-  the primary flow (do not rely on mock data for the primary flow).
+- The application is login-only. It has no registration endpoint, signup page,
+  or public self-signup flow. Accounts are provisioned using seed data or the
+  operator-only `create-user` script.
 - `GET /api/schedules/:id`: Detail with current booking status
 - `POST /api/bookings`: `{ scheduleId }` (Authenticated)
 - `GET /api/bookings/my`: List of user's bookings
@@ -339,11 +338,20 @@ Jed Yod and Doi Saket only. Deployment checks and evidence remain.
   `Jed Yod`, `Doi Saket`; 8 schedules were seeded and 0 had invalid/equal
   endpoints. Existing `source/api/data/campus.db` was not modified.
 
+### Approved login-domain update
+
+- Login and account tooling accept only an address ending exactly in
+  `@live.rmutl.ac.th`, case-insensitively. Legacy, nested, malformed, and
+  suffix-lookalike domains are rejected.
+- JWT and scrypt behavior are preserved. This remains a login-only app with no
+  registration endpoint or public self-signup flow.
+- Verified after the change: backend tests 49/49 and frontend tests 12/12.
+
 ## Sprint 1–4 Gap Analysis (2026-10-06)
 
 | Sprint | Already implemented | Remaining at start of this phase |
 |---|---|---|
-| 1 — Database and authentication | Shuttle schema/seed, `@rmutl.ac.th` login, JWT, password hashing, protected booking routes, missing/domain/credential tests, incompatible-schema startup guard, production JWT secret requirement | Before starting against the local legacy DB, an operator must back it up and explicitly reset or migrate it; automatic destructive migration is intentionally not performed. |
+| 1 — Database and authentication | Shuttle schema/seed, `@live.rmutl.ac.th` login, JWT, password hashing, protected booking routes, missing/domain/credential tests, incompatible-schema startup guard, production JWT secret requirement | Before starting against the local legacy DB, an operator must back it up and explicitly reset or migrate it; automatic destructive migration is intentionally not performed. |
 | 2 — Campuses and schedules | Two approved location records, route/date filters, same-campus validation, API counts, runtime expiry and booking rejection, frontend search/list/detail | No functional gap identified; filter and expiry tests already run. |
 | 3 — Booking and waitlist | Atomic local SQLite booking/cancellation, duplicate prevention, waitlisting, ownership checks, FIFO by `(created_at, id)`, promotion | Functional requirements and local concurrency cases are covered. A remote driver is not configured; its concurrency behavior is not verified and cannot be claimed. |
 | 4 — Frontend and handover | Login, dashboard, schedule search/list/detail, My Bookings, booking/cancellation actions, booking/waitlist outcome, API connection, responsive styling, loading/empty/error states, corrected Render service/root and secret prompt, shuttle root checks | Configured SQLite storage is ephemeral; use supported persistent storage before relying on deployed bookings, then perform build/deployment evidence checks. |
