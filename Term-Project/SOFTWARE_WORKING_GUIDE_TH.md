@@ -1,383 +1,280 @@
-# คู่มือทำความเข้าใจและอธิบายซอฟต์แวร์ RMUTL Shuttle
+# คู่มือทำความเข้าใจซอฟต์แวร์ RMUTL Shuttle
 
-เอกสารนี้อธิบายตาม source code และผลตรวจล่าสุดใน repository เพื่อให้สมาชิกทั้ง 4 บทบาทอธิบายระบบเดียวกันได้ แม้การพัฒนาจะทำโดยผู้ร่วมพัฒนาคนเดียวก็ตาม ระบบยังใช้โครงสร้างเดิมของ Express, React, SQLite/libsql, JWT และ scrypt
-
-> ใน repository ไม่พบไฟล์สไลด์ PowerPoint/PDF สำหรับตรวจข้อความแบ่งงาน หากสไลด์ฉบับนำเสนอระบุให้ Frontend รับผิดชอบฐานข้อมูล/API/JWT/FIFO หรือให้ Backend รับผิดชอบงาน UI ข้อความนั้นไม่ตรงกับหน้าที่ทางเทคนิคที่เห็นใน source code คู่มือนี้จึงยึดการแบ่งหน้าที่ตาม implementation จริง
+เอกสารนี้อธิบายโค้ดใน repository ปัจจุบันสำหรับสมาชิกทั้งสี่บทบาท ใช้ระบบ request-based: ผู้ใช้ระบุเวลาที่ต้องการเดินทางระหว่างเจ็ดยอดและดอยสะเก็ด แล้วส่งคำขอซึ่งเริ่มเป็น `PENDING` การส่งคำขอยังไม่ใช่การอนุมัติ รถมีฐานประจำที่เจ็ดยอด ไม่มีตารางเดินรถประจำ ไม่มีการจองที่นั่ง/คิวผู้โดยสาร และไม่มี GPS
 
 ## ภาพรวมสถาปัตยกรรม
 
 ```text
-ผู้ใช้
-  │ React + Vite, HashRouter, Language/Auth Context
-  │ shuttleService → apiClient (JSON + Bearer JWT)
-  ▼ HTTP / JSON
-Express app → routes → validators / middleware → services
-  │                                            │
-  │                                    shuttleDb helpers
-  ▼                                            ▼
-API response ◄──────────────────────── SQLite (node:sqlite)
+React + Vite (HashRouter)
+        │ JSON + Bearer JWT
+        ▼
+Express API: routes → validators/services → SQLite (libsql)
+        │
+        └── signed JWT; password hashes use scrypt
 ```
 
-- Frontend แสดงผล รับ input และเรียก API; ไม่เป็นผู้ตัดสินสิทธิ์จองหรือจำนวนที่นั่ง
-- Express route ตรวจ request และส่งต่อ service; route เหล่านี้เรียก service โดยตรง ไม่มีชั้น controller แยกใน active shuttle API
-- Service ทำกฎธุรกิจและเรียก helper ที่คุยกับฐานข้อมูล
-- SQLite เก็บผู้ใช้ จุดให้บริการ ตารางรถ และการจอง
-- จุดให้บริการมีเพียง **Jed Yod (เจ็ดยอด)** และ **Doi Saket (ดอยสะเก็ด)**; เลือกต้นทางกับปลายทางเดียวกันไม่ได้
+Frontend แสดงข้อมูลและส่งคำขอผ่าน API client; ไม่เป็นผู้ตัดสิน ownership, สถานะ, หรือสิทธิ์ admin. Express ตรวจ token/role และข้อมูล จากนั้น service ทำกฎธุรกิจและเรียก SQLite. ตารางหลักคือ `users`, `vehicles`, `vehicle_requests`.
 
-### ลำดับการไหลของข้อมูลทั่วไป
+### ลำดับสำคัญของข้อมูล
 
-1. ผู้ใช้กรอกหรือเลือกข้อมูลใน React page
-2. page เรียกฟังก์ชันใน `frontend/src/services/shuttleService.js`
-3. `apiClient.js` ส่ง `fetch` ไป Express; ถ้ามี token จะใส่ `Authorization: Bearer …`
-4. Express route ตรวจ input/authentication และเรียก service
-5. service query หรือแก้ข้อมูล SQLite ผ่าน `shuttleDb.js`
-6. API ตอบ JSON หรือ error code
-7. Frontend แปลง error code เป็นข้อความตามภาษาปัจจุบัน แล้วแสดง loading, empty, error, success หรือผลการจอง
+- **เข้าสู่ระบบ:** Login page ส่งอีเมล/รหัสผ่าน → `POST /api/auth/login` ตรวจโดเมนและ scrypt → API คืน JWT กับ user → AuthContext เก็บ token ในหน่วยความจำ → API client แนบ Bearer token. โหลดหน้าใหม่แล้ว session ในหน่วยความจำสิ้นสุด.
+- **ส่งคำขอ:** แบบฟอร์มตรวจข้อมูลในหน้าเว็บ → ผู้ใช้ตรวจทาน → กดส่ง → API ตรวจอีกครั้งและระบุผู้ใช้จาก JWT → service สร้างคำขอ `PENDING` → SQLite บันทึก → ticket แสดงผลตอบกลับจริง.
+- **สถานะคำขอ:** `PENDING` → ผู้ใช้ยกเลิกเป็น `CANCELLED`, หรือเจ้าหน้าที่อนุมัติเป็น `APPROVED`, หรือปฏิเสธเป็น `REJECTED`; คำขอที่อนุมัติแล้วอาจถูกเจ้าหน้าที่บันทึกเป็น `COMPLETED`. API ป้องกันการเปลี่ยนสถานะผิดลำดับ.
+- **ยกเลิก:** ผู้ใช้เจ้าของคำขอส่ง cancel ได้เฉพาะ `PENDING`; record ยังคงอยู่ในประวัติ.
+- **ตรวจอนุมัติ:** middleware ตรวจ JWT และ role `admin` ที่ลงนามโดย server. Admin อนุมัติโดยไม่กำหนดรถได้; ถ้ามอบหมายรถ ต้องเป็นรถ active ความจุพอ และมีช่วงเวลาให้ตรวจการทับซ้อน. การตรวจ overlap กับการเปลี่ยนสถานะทำใน transaction. ปฏิเสธต้องมีเหตุผล.
 
-### Authentication flow
-
-1. ผู้ใช้ส่ง email/password ไป `POST /api/auth/login`
-2. Validator ตรวจค่าที่จำเป็น; `authService.js` trim และ lowercase email แล้วตรวจให้ตรงกับ `^[^@\s]+@live\.rmutl\.ac\.th$`
-3. `shuttleDb.js` ค้นผู้ใช้; `password.js` ตรวจ scrypt hash ด้วย `timingSafeEqual`
-4. สำเร็จแล้ว backend ออก JWT ด้วย `jsonwebtoken`; email ที่ไม่อยู่ในระบบและรหัสผ่านผิดใช้ข้อความปฏิเสธเดียวกัน
-5. `AuthContext` เก็บ session ใน memory และส่ง token ให้ `apiClient`
-6. `authenticate` ตรวจ Bearer token ใน endpoint จอง; reload หน้าแล้ว session หายและต้อง login ใหม่
-
-แอปนี้เป็น **login-only** ไม่มี registration endpoint, หน้าสมัคร หรือ public self-signup บัญชีได้จาก seed สำหรับ demo หรือผู้ดูแลเรียก `create-user.mjs`
-
-### Booking และ FIFO waitlist flow
-
-1. ผู้ใช้เลือกตารางรถแล้ว Frontend ส่ง `POST /api/bookings` พร้อม `scheduleId` และ JWT
-2. `bookingService.createBooking()` เปิด SQLite `BEGIN IMMEDIATE` transaction, ตรวจผู้ใช้/เที่ยวรถ/เวลาออกและรายการที่ยัง active อยู่
-3. คำนวณที่นั่งจาก capacity หัก confirmed และ waitlisted ภายใน transaction; ถ้ามีที่นั่งสร้าง confirmed ถ้าเต็มสร้าง waitlisted
-4. partial unique index กัน active booking ซ้ำต่อผู้ใช้/เที่ยวรถ; transaction ที่ serialize การเขียนช่วยป้องกัน overbooking ใน local SQLite
-5. Frontend แสดง ticket หลังได้ผล API สำเร็จเท่านั้น โดยใช้ booking response จริงประกอบกับข้อมูล route ที่โหลดไว้
-6. การยกเลิกส่ง `DELETE /api/bookings/:id`; backend ตรวจเจ้าของรายการหรือสิทธิ์ admin
-7. ยกเลิก confirmed แล้วเลือก waitlisted แรกด้วย `ORDER BY created_at, id`; เปลี่ยนสถานะ cancelled และเลื่อนคนขึ้น confirmed ภายใน transaction เดียวกัน การยกเลิก waitlist ไม่ promote คนอื่น
-
-`waitlist_seq` เป็นข้อมูลวินิจฉัย ไม่ใช่ตำแหน่งคิวปัจจุบัน; UI จึงไม่แสดงตัวเลขลำดับคิวจาก field นี้
-
-## 1. Product Owner / Lead
+## บทบาท 1: Product Owner / Lead
 
 ### 1. หน้าที่ของบทบาท
 
-กำหนดวัตถุประสงค์และขอบเขต ประสาน Sprint 1–4 นิยาม acceptance criteria จัดลำดับงาน ตรวจข้อจำกัด และส่งงานที่พร้อมให้ Frontend, Backend และ QA ตามส่วนรับผิดชอบ
+กำหนดเป้าหมายและขอบเขตระบบ รับรอง user flow และ acceptance criteria สรุป Sprint 1–4 ประเมินข้อจำกัด/ความพร้อมส่งมอบ และประสาน handoff ระหว่าง Frontend, Backend และ QA.
 
 ### 2. ส่วนของระบบที่เกี่ยวข้อง
 
-- Product scope: ระบบค้นหา/จอง shuttle ระหว่างเจ็ดยอดกับดอยสะเก็ดสองทิศทาง
-- User journey: เข้าระบบ → เลือกเส้นทาง/วัน → ดูเที่ยวรถ → จองหรือเข้าคิว → ดูรายการ → ยกเลิก
-- Sprint overview: Sprint 1 database/auth; Sprint 2 campuses/schedules; Sprint 3 booking/cancellation/FIFO; Sprint 4 React UI/API integration และการส่งมอบ
-- ข้อจำกัด production: ยังไม่ยืนยัน persistent production DB, deployment, remote transaction หรือ browser E2E
+เอกสารหลักคือ `AGENT_HANDOFF.md`, `FINAL_AUDIT_REPORT.md`, `REQUEST_WORKFLOW_MIGRATION.md`, `source/README.md` และ `PRESENTATION_SCRIPT_TH.md`.
 
 ### 3. หลักการทำงาน
 
-ยึด acceptance criteria ที่ตรวจได้จาก API/UI/test เช่น มีจุดให้บริการสองแห่งเท่านั้น, email ต้องจบตรง `@live.rmutl.ac.th`, ต้นทางและปลายทางต้องต่างกัน, ห้ามจองซ้ำ/เกินความจุ, cancellation ต้องตรวจเจ้าของและ promote FIFO. ผู้ใช้เห็นข้อความจองสำเร็จหลัง API ตอบรับเท่านั้น
+ขอบเขตธุรกิจคือรับคำขอใช้รถระหว่างสองจุด ไม่ใช่เลือกเที่ยวรถประจำ. ผู้ใช้ระบุเที่ยวเดียวหรือไป-กลับ วันที่เวลา จำนวนผู้โดยสาร และวัตถุประสงค์ แล้วตรวจทานก่อนส่ง. Request ใหม่ต้องเป็น `PENDING`; approval เป็นการตัดสินใจของเจ้าหน้าที่ที่ได้รับสิทธิ์. ข้อมูลที่ไม่มีจริง เช่น ตำแหน่ง GPS หรือรถที่ยังไม่ได้ลงทะเบียน ห้ามนำเสนอเหมือนมีอยู่.
 
 ### 4. ลำดับการไหลของข้อมูล
 
-รับความต้องการและกำหนด acceptance criteria → มอบ API contract ให้ Backend → มอบเส้นทาง/สถานะหน้าจอให้ Frontend → มอบกรณีทดสอบและหลักฐานให้ QA → รวบรวมผล test/build และ limitation สำหรับ demo/release readiness
+รับความต้องการ → เขียน acceptance criteria → ส่ง API contract และข้อความ/สถานะให้ Frontend กับ Backend → QA ทดสอบ flow และข้อผิดพลาด → ตรวจผล build/test/limitations → เตรียม demo ด้วยฐานข้อมูล disposable.
 
 ### 5. ไฟล์และโฟลเดอร์หลัก
 
-- `AGENT_HANDOFF.md`: ขอบเขต, sprint status, implementation/verification history
-- `FINAL_AUDIT_REPORT.md`: checklist, API/schema, ผลตรวจ, demo, limitation
-- `PRESENTATION_SCRIPT_TH.md`: บทนำเสนอภาษาไทย
-- `source/README.md`: setup, reset, API และ test commands
-- `source/api/data/schema.sql`: แหล่งจริงของ seed/schema ที่ต้องสอดคล้องกับขอบเขต
+- `REQUEST_WORKFLOW_MIGRATION.md` — วิเคราะห์และบันทึกการเปลี่ยนโมเดล
+- `AGENT_HANDOFF.md` — สถานะสำหรับผู้รับช่วง
+- `FINAL_AUDIT_REPORT.md` — checklist, verification, demo และข้อจำกัด
+- `source/API_CONTRACT.md` — contract ที่ frontend/backend ใช้ร่วมกัน
+- `PRESENTATION_SCRIPT_TH.md` — บทนำเสนอภาษาไทย
 
 ### 6. วิธีรันและตรวจสอบ
 
-จาก `source/` เตรียม environment และ database พัฒนา จากนั้นรัน API/frontend ตามคำสั่งในหัวข้อ “คำสั่งตรวจสอบและนำเสนอ”. ตรวจครบ `npm test`, `npm run check`, `npm run build`; อย่าอ้างว่า production พร้อมเพียงเพราะ local build ผ่าน
+จาก `source/` ใช้ `npm test`, `npm run check`, `npm run build`. เริ่ม API และ frontend ด้วยคำสั่งในส่วนรันทดสอบด้านล่าง. ใช้เฉพาะฐานข้อมูลทดลอง; อย่า reset ฐานข้อมูลผู้ใช้หรือ production.
 
 ### 7. ปัญหาที่พบบ่อย
 
-- Requirement หรือสไลด์เก่าอาจยังพูดถึงสามวิทยาเขต/อีเมลโดเมนเดิม: ยืนยันกับ schema และ validator ปัจจุบัน
-- วันออกเดินทางใน seed เปลี่ยนสัมพันธ์กับเวลาจริง: ตรวจ `departure_time` ก่อน demo expiry
-- การ reset DB กระทบข้อมูลในไฟล์เป้าหมาย: หยุด API ใช้ disposable `DB_FILE` หรืออ่าน backup timestamp ก่อนเสมอ
-- Local SQLite pass ไม่ได้แปลว่า remote database concurrency ผ่าน
+- ถ้าผู้ใช้เข้าใจว่า PENDING คืออนุมัติ ให้ชี้แจงว่าเป็นเพียงระบบรับคำขอ.
+- ถ้า demo ไม่พบรถ ให้ตรวจว่า admin ได้ลงทะเบียนรถในฐานข้อมูล disposable แล้ว; seed ไม่มี fleet.
+- ถ้าข้อมูลเก่ามี booking อย่าแปลงเป็น request โดยเดา purpose หรือช่วงเวลา.
+- การผ่าน test/build ไม่ได้ยืนยัน production deployment หรือ browser E2E.
 
 ### 8. สิ่งที่ควรอธิบายตอนนำเสนอ
 
-อธิบายผู้ใช้เป้าหมายและเส้นทางหลัก, ขอบเขตสอง location, การตรวจสิทธิ์/ที่นั่งที่ backend, atomic booking/cancellation และ FIFO. บอกตามจริงว่า automated local checks ผ่าน แต่ production storage/deployment และ graphical browser E2E ยังไม่ได้ยืนยัน
+อธิบายเหตุผลที่ใช้ request workflow, acceptance criteria, บทบาทผู้ใช้กับผู้อนุมัติ, ผล verification ที่รันจริง และข้อจำกัด เช่นไม่มี GPS/notification/production deployment.
 
 ### 9. การส่งต่องานให้บทบาทอื่น
 
-- ให้ Backend: acceptance criteria, allowed campus/domain, API payload/error expectations, data rules
-- ให้ Frontend: user journey, Thai/English copy, loading/empty/error/success states, responsive behavior
-- ให้ QA: traceable criteria, reproducible seed/reset data, expected status/error และหลักฐานที่ต้องเก็บ
+ส่ง flow, สถานะที่อนุญาต, validation criteria และ API contract ให้ Frontend/Backend; ส่ง scenarios รวม failure cases และผลที่คาดหวังให้ QA. รับผลทดสอบและข้อจำกัดกลับมาปรับ acceptance/audit.
 
-## 2. Frontend Developer
+## บทบาท 2: Frontend Developer
 
 ### 1. หน้าที่ของบทบาท
 
-ดูแล React user flow, routing, localization, การเรียก API, การแสดงสถานะ และ responsive/accessibility behavior โดยไม่ย้าย business rule การจองมาเป็นอำนาจตัดสินของ browser
+ดูแล React UI, routing, form, API integration, localization, loading/empty/error/success states และ responsive behavior.
 
 ### 2. ส่วนของระบบที่เกี่ยวข้อง
 
-- React 19 + Vite; entry ใช้ `HashRouter`
-- Routes: `/` dashboard, `/login`, `/schedules`, `/schedules/:scheduleId`, `/bookings`, `/guide`
-- `LanguageProvider`: Thai default, `ไทย | EN`, เปลี่ยนทันที, เก็บ preference ใน localStorage ได้; fallback English แล้ว fallback เป็น key
-- `AuthProvider`: เก็บ session/JWT ใน memory
-- active user-facing page ใช้ API จริงและสถานะโหลด/ไม่มีข้อมูล/ผิดพลาด/สำเร็จ
+โค้ดอยู่ที่ `source/frontend/src/`; application entry คือ `main.jsx`/`App.jsx`, route pages อยู่ใน `pages/`, shared UI ใน `components/`, context ใน `contexts/`, API access ใน `services/`, คำแปลใน `i18n/`, theme ใน `styles.css`.
 
 ### 3. หลักการทำงาน
 
-ใช้ `shuttleService.js` เป็นฟังก์ชันตาม feature และ `apiClient.js` เป็นจุด `fetch` กลาง. API error มี `code/status`; dictionary ใน `i18n/translations.js` เลือกข้อความให้ตรงภาษา. ชื่อ campus/date แสดงแปลตาม locale แต่ API identifiers/field names คงเดิม. JWT จาก login ถูกเก็บใน memory และแนบเป็น Bearer token; ไม่เปลี่ยน authentication behavior ด้วย language preference
+ใช้หน้าเดียวร่วมกันทั้งไทย/อังกฤษผ่าน LanguageContext และ dictionary; ไทยเป็นค่าเริ่มต้น. API response เป็นแหล่งข้อมูลสถานะและ assignment. JWT ส่งผ่าน API client แต่ backend เป็นผู้ตรวจสิทธิ์. หน้าสำเร็จแสดงหลัง API ตอบสำเร็จเท่านั้น. Guide เปิดเมื่อผู้ใช้เลือก ไม่ใช่ onboarding บังคับ.
 
 ### 4. ลำดับการไหลของข้อมูล
 
-Page รับ interaction → service สร้าง endpoint/query/body → `apiFetch` ใส่ JSON และ token → parse response หรือโยน `ApiError` → page อัปเดต state → `translate()` แสดงข้อความ. Schedule detail แสดง `BookingTicket` หลัง `createBooking()` resolve. My Bookings เปิด dialog เพื่อยืนยันก่อน `cancelBooking()`
+`App.jsx` จัด routes → `AppLayout` แสดง nav/outlet → page รวบรวม/ตรวจ form → `vehicleRequestService.js` เรียก API client → page แสดง loading/error/result → My Requests/Detail ขอข้อมูลจาก endpoint owner-scoped. Admin page แสดง controls ตาม role แต่ role check ของ browser เป็น usability בלבד; server authorization เป็น security boundary.
 
 ### 5. ไฟล์และโฟลเดอร์หลัก
 
-- `source/frontend/src/App.jsx`: route map และ providers
-- `src/main.jsx`: React root, `HashRouter`, CSS
-- `src/pages/`: `DashboardPage`, `LoginPage`, `SchedulesPage`, `ScheduleDetailPage`, `MyBookingsPage`, `UserGuidePage`, layout และ not-found
-- `src/components/`: header, schedule card, booking ticket, cancellation dialog, loading/empty/error
-- `src/services/apiClient.js`, `shuttleService.js`: API integration
-- `src/contexts/AuthContext.jsx`, `LanguageContext.jsx`: session และ locale
-- `src/i18n/translations.js`: dictionary/error mapping/date/campus labels
-- `src/styles.css`: shared theme variables, responsive UI, focus, reduced-motion rules
-- `src/utils/institutionalEmail.js`: client-side exact-domain convenience validation; backend remains authoritative
-- `scripts/check-project.mjs`: frontend structural checks
-- `src/**/*.test.js`: service, dictionary/language, email utility tests
+- `source/frontend/src/App.jsx` — active routes
+- `pages/LoginPage.jsx`, `DashboardPage.jsx`, `NewRequestPage.jsx`, `MyRequestsPage.jsx`, `RequestDetailPage.jsx`, `AdminRequestsPage.jsx`, `UserGuidePage.jsx`
+- `components/AppHeader.jsx`, `VehicleRequestCard.jsx`, `RequestSubmissionTicket.jsx`
+- `services/authService.js`, `services/vehicleRequestService.js`
+- `contexts/AuthContext.jsx`, `LanguageContext.jsx`; `i18n/translations.js`
+- `utils/vehicleRequestForm.js`; `styles.css`
 
 ### 6. วิธีรันและตรวจสอบ
 
-จาก `source/`: `npm install --prefix frontend`, `npm run dev --prefix frontend`; เว็บ Vite ปกติที่ `http://localhost:5173`. ตรวจด้วย `npm test --prefix frontend`, `npm run check --prefix frontend`, `npm run build --prefix frontend` หรือ root commands
+จาก `source/`: `npm install --prefix frontend`, `npm run dev --prefix frontend`; test ด้วย `npm test --prefix frontend`, ตรวจ static flow ด้วย `npm run check --prefix frontend`, production build ด้วย `npm run build --prefix frontend`. API ต้องทำงานที่ URL ที่ตั้งไว้ใน `VITE_API_BASE_URL` (ค่าเริ่มต้น localhost:3001).
 
 ### 7. ปัญหาที่พบบ่อย
 
-- API connection failed: ตรวจ API ว่ารันหรือไม่, `VITE_API_BASE_URL`, CORS และพอร์ต
-- 401 สำหรับ booking: login ใหม่; JWT อยู่ใน memory และหายเมื่อ reload
-- 400 schedule filter: ตรวจ origin/destination IDs, วันรูปแบบ YYYY-MM-DD และไม่เลือก campus เดียวกัน
-- เห็นข้อความอังกฤษในไทย: ตรวจ key ในทั้ง dictionary และ fallback โดยไม่เปลี่ยน API contract
-- API login ผ่านแต่ UI ไม่ผ่าน: ตรวจ validation/helper ที่ frontend และ payload ที่ `shuttleService.login` ส่ง
-- Guide ไม่ขึ้น nav: ตรวจ `AppHeader.jsx`, `/guide` ใน `App.jsx` และ language keys
+- Network/API error: ตรวจ API process, base URL, CORS และว่า API ใช้ schema request ใหม่.
+- Login หายหลัง reload: token เก็บใน memory ตาม implementation ปัจจุบัน; เข้าระบบใหม่.
+- รายการว่าง: เป็น empty state ปกติสำหรับบัญชีที่ยังไม่มีคำขอ.
+- แสดงรถ/เหตุผลปฏิเสธไม่ตรง: UI ต้อง render เฉพาะ field ที่ API ส่งมาจริง.
+- วันเวลาไม่ผ่าน: ต้องเป็นเวลาอนาคต; ไป-กลับต้องมี return หลัง departure.
 
 ### 8. สิ่งที่ควรอธิบายตอนนำเสนอ
 
-Frontend แยก page/component/service/context; หน้าจอใช้ข้อมูล API จริง; ไทยเป็นค่าเริ่มต้นและสลับ EN ได้ทันที; JWT ใช้ใน memory; booking ticket ปรากฏเมื่อ API success; dialog cancellation ต้องยืนยัน; loading/empty/error มี state แยก; layout รองรับ mobile และลด motion ตาม user preference
+ชี้เส้นทางหน้าเว็บ, วิธีตรวจทานก่อนส่ง, Thai/English switch, feedback ระหว่างเรียก API, My Requests/detail และการแสดง PENDING โดยไม่เรียกว่าอนุมัติ.
 
 ### 9. การส่งต่องานให้บทบาทอื่น
 
-- ส่ง Backend: endpoint, payload, response field หรือ error code ที่ UI ต้องใช้
-- ส่ง QA: route/state ที่ต้องตรวจ, locale, input boundary, disabled/pending action และ network failure
-- แจ้ง Product Owner: ข้อความ/flow ที่เปลี่ยน, limitation ที่ผู้ใช้เห็น และหลักฐาน build/check
+แจ้ง Backend เมื่อ payload/error code/response ไม่ตรง `source/API_CONTRACT.md`; ส่ง acceptance scenarios และ UI states ให้ QA; รายงาน Product Owner เมื่อข้อความหรือ flow ขัดกับ business rule.
 
-## 3. Backend Developer
+## บทบาท 3: Backend Developer
 
 ### 1. หน้าที่ของบทบาท
 
-ดูแล Express API, validation, authentication, service rules, schema/seed และ transaction ให้ API เป็นผู้ตัดสินความถูกต้องของบัญชี ตารางรถ การจอง และการยกเลิก
+ดูแล Express API, SQLite schema, JWT/password verification, domain validation, ownership, cancellation, admin approval boundary และ request/vehicle rules.
 
 ### 2. ส่วนของระบบที่เกี่ยวข้อง
 
-Express request ไหลจาก `app.js` → route → validator/auth middleware เมื่อจำเป็น → service → `shuttleDb.js` → SQLite. Route ปัจจุบันเรียก service โดยตรง ไม่มี controllers layer แยกสำหรับ active shuttle routes
+API code nằm trong `source/api/src/`; schema/seed ở `source/api/data/schema.sql`; scripts và tests ở `source/api/scripts/`, `source/api/tests/`.
 
 ### 3. หลักการทำงาน
 
-- Auth: email normalize/ตรวจ exact `@live.rmutl.ac.th`; JWT sign/verify; scrypt hash และ constant-time compare
-- Locations/routes: seed สองแห่งและห้าม origin=destination ผ่าน filter validation
-- Expiry: schedule service derive จาก departure time; booking service ตรวจเวลาอีกครั้งก่อนสร้าง booking
-- Seat counts: คำนวณจาก rows ภายใน transaction ไม่พึ่ง cache อย่างเดียว
-- Atomicity: `BEGIN IMMEDIATE`/COMMIT/ROLLBACK ของ local SQLite; partial unique index ป้องกัน active duplicate
-- FIFO: cancellation of confirmed promotes `created_at`, then `id` ลำดับแรก ใน transaction เดียวกัน
-- Startup: schema compatibility guard ไม่ reset DB เก่าเอง; DB reset เป็นคำสั่ง explicit และ backup ไฟล์เดิมก่อนเขียนทับ
+Request đi qua route → auth/role middleware → validator/service → `shuttleDb.js`. API lấy user/role từ JWT đã verify; không tin userId/status/assignment จาก request body. Domain chỉ cho Jed Yod ↔ Doi Saket. `vehicle_requests` giữ lịch sử; không hard-delete qua API user. Approval và overlap check dùng SQLite transaction. Hiện có admin role an toàn ở server; không tạo quyền dựa trên frontend.
 
 ### 4. ลำดับการไหลของข้อมูล
 
-Express รับ HTTP → route ตรวจรูปแบบ/สิทธิ์ → service ตรวจ business rule → transaction/query ผ่าน `shuttleDb` → DB constraint และผล query เป็น source of truth → route แปลงเป็น HTTP status/JSON → client แปล display message. Login ไม่มี public registration; `create-user` เป็น operator script
+Express nhận JSON → route áp middleware → validator kiểm fields → service kiểm state/ownership/business rules → transaction khi cần → SQLite → service tạo response → error middleware chuyển lỗi thành JSON/status nhất quán. Login xác thực email domain và scrypt hash trước khi ký JWT.
 
 ### 5. ไฟล์และโฟลเดอร์หลัก
 
-- `source/api/src/app.js`, `server.js`, `config.js`: app, routes, startup/config
-- `src/routes/`: auth, campus, schedule, booking, health
-- `src/middleware/auth.js`, `errorHandler.js`
-- `src/validators/shuttleValidator.js`
-- `src/services/authService.js`, `scheduleService.js`, `bookingService.js`, `shuttleDb.js`
-- `src/utils/password.js`
-- `source/api/data/schema.sql`: tables, indexes, seeds
-- `source/api/scripts/setup-db.mjs`: setup/reset with existing-file backup
-- `scripts/create-user.mjs`: operator account tool
-- `source/api/tests/`: integration และ unit tests
+- `source/api/src/server.js`, `app.js`, `config.js`
+- `src/routes/authRoutes.js`, `locationRoutes.js`, `vehicleRequestRoutes.js`, `adminRoutes.js`
+- `src/services/shuttleDb.js`, `vehicleRequestService.js`, `authService.js`
+- `src/validators/authValidator.js`, `requestValidator.js`
+- `src/middleware/` authentication, role, error handling
+- `data/schema.sql`, `scripts/setup-db.mjs`, `scripts/create-user.mjs`
+- `tests/integration/vehicleRequests.api.test.js`, `adminRequests.api.test.js`, `auth.api.test.js`; `tests/unit/requestValidator.test.js`, `shuttleDb.test.js`
 
 ### 6. วิธีรันและตรวจสอบ
 
-จาก `source/`: `npm install --prefix api`; หากต้องตั้ง dev environment ให้คัดลอก `api/.env.example` เป็น `api/.env` แล้วตั้งค่าเฉพาะเครื่อง. เตรียมฐานข้อมูลด้วย `npm run db:setup --prefix api`; API รันด้วย `npm run dev --prefix api` ที่พอร์ต 3001. ตรวจ `npm test --prefix api` และ `npm run check --prefix api`. สร้างบัญชี operator ด้วย `npm run create-user --prefix api -- <email> <password> [name] [user|admin]`
-
-สำหรับการตรวจ reset ให้กำหนด DB_FILE ไป disposable path เช่น `DB_FILE=/tmp/rmutl-shuttle-dev.db npm run db:reset --prefix api`; อย่า reset user/production DB
+จาก `source/`: ตั้งค่า local `.env` จาก `api/.env.example` หากจำเป็น, สร้าง schema ด้วย `npm run db:setup --prefix api`, เริ่มด้วย `npm run dev --prefix api`. ทดสอบด้วย `npm test --prefix api`; static check `npm run check --prefix api`.
 
 ### 7. ปัญหาที่พบบ่อย
 
-- Startup บอก missing Shuttle tables: ตรวจ DB_FILE; อาจชี้ legacy schema; backup ก่อน แล้วเลือก migrate/reset ด้วยความเข้าใจ
-- Login 400: ตรวจ suffix, whitespace และ payload; Login 401: ตรวจบัญชี/password โดยไม่เปิดเผยว่าบัญชีใดมีอยู่
-- Booking 409: schedule expired หรือผู้ใช้มี active booking อยู่แล้ว
-- 401/403: token ขาด/หมดอายุเทียบกับ role/ownership
-- Seats/FIFO ต่างจากที่คาด: ตรวจ rows, timestamps, capacity และใช้ local SQLite test; อย่าอนุมาน remote behavior
-- Port in use: ตรวจ `PORT` และ process ที่ใช้อยู่ก่อนเริ่ม server
+- Database legacy: startup ไม่ควรลบหรือ reset อัตโนมัติ. ใช้ disposable `DB_FILE` และคำสั่ง reset ที่ระบุไว้; อย่าแตะ `campus.db` โดยไม่สำรอง/อนุมัติ.
+- `401`: token ขาด/หมดอายุ/ไม่ถูกต้อง; `403`: ผู้ใช้ไม่ใช่ admin; request ที่ไม่เป็นเจ้าของตอบ 404.
+- Assignment overlap: ตรวจว่าทั้งสองคำขอมีช่วงเวลาจำกัดและ query อยู่ใน transaction.
+- รถไม่มีในรายการ: fleet seed ว่าง; admin ต้องบันทึกรถจริง.
+- ไม่พบข้อมูลในตารางใหม่: ตรวจ `DB_FILE` และ schema ด้วยคำสั่ง database setup.
 
 ### 8. สิ่งที่ควรอธิบายตอนนำเสนอ
 
-อธิบาย route-service-database path, JWT/scrypt, exact email domain, schema สี่ตาราง, immediate transactions, unique index, expiry จากเวลาออก, duplicate/overbooking protection และ FIFO tie-break `(created_at, id)`. ระบุว่า test ใช้ local SQLite และ remote concurrency ยังไม่ verify
+อธิบาย API boundary, signed JWT และ scrypt, validate ở frontend และ backend, `PENDING` ที่ server đặt, owner restriction, cancellation history, transaction chống assignment overlap, vàเหตุผลที่ไม่ migrate booking cũ bằngการเดา.
 
 ### 9. การส่งต่องานให้บทบาทอื่น
 
-- ส่ง Frontend: stable endpoint, JSON field, status code และ error code; อย่าให้ UI คำนวณสิทธิ์แทน server
-- ส่ง QA: resettable DB path, seed users/schedules, expected states และ concurrency/FIFO scenarios
-- ส่ง Product Owner: API contract ที่เปลี่ยน, deployment/configuration requirements, migration risk และข้อจำกัด
+แจ้ง Frontend เรื่อง endpoint, payload, error code และ transition; ส่ง QA กฎ/กรณีขอบและ reset command; แจ้ง Product Owner เมื่อกฎธุรกิจต้องการช่วงเวลา/ข้อมูล/สิทธิ์ที่ยังไม่มี.
 
-## 4. QA & Test
+## บทบาท 4: QA & Test
 
 ### 1. หน้าที่ของบทบาท
 
-ตรวจ requirement ด้วย unit, integration, static check และ production build; สร้างหลักฐานที่ทำซ้ำได้ และจำแนกสาเหตุเมื่อระบบผิดพลาดโดยไม่ลดคุณภาพ assertion หรือแก้ data จริง
+ทดสอบ API/backend, frontend states, auth/domain validation, request lifecycle, ownership, cancellation, admin transition/overlap, production build และเก็บหลักฐานที่ตรวจซ้ำได้.
 
 ### 2. ส่วนของระบบที่เกี่ยวข้อง
 
-- API unit: config, password, DB schema guard, validators
-- API integration: auth, schedules, booking, cancellation, expiry, FIFO และ concurrency
-- Frontend unit: API client/service behavior, translation/language, email validation และ utility
-- Static project checks: API smoke/contract structure และ frontend routes/accessibility-related wiring
-- Build: Vite production bundle ผ่าน root `npm run build`
+Backend tests `source/api/tests/`; frontend tests อยู่ใกล้ service/util/page structure ใน `source/frontend/src/`; static check scripts อยู่ใน `source/api/scripts/check-project.mjs` และ `source/frontend/scripts/check-project.mjs`.
 
 ### 3. หลักการทำงาน
 
-เริ่มจาก test ตาม acceptance criteria; ใช้ isolated/in-memory DB ใน suite และ disposable file สำหรับ reset/HTTP smoke; test domain acceptance/rejection, same-campus/filter errors, expiry, ownership, duplicate, capacity, FIFO tie และ six-way last-seat concurrency. เก็บ command, output, counts และ git revision ไว้ในหลักฐาน. ไม่ถือว่า static checker แทน browser E2E
+รักษา assertion ให้มีความหมาย; test data ใช้ DB แยก. ตรวจค่าจริงจาก response และ HTTP status. อย่ารายงาน smoke/build/deploy ว่าผ่านถ้าไม่ได้รัน. Test admin authorization ผ่าน API ไม่ใช่เพียงซ่อนปุ่ม.
 
 ### 4. ลำดับการไหลของข้อมูล
 
-Requirement → test case/input/setup → command → API/service/UI response → assert expected status/data → บันทึก output/count → ถ้าล้มเหลวแยก frontend/API/database/environment ก่อนส่งกลับเจ้าของ component
+Reset DB disposable → เริ่ม API → integration test ส่ง HTTP request → ตรวจ status/body/database outcome → รัน frontend test/check/build → เก็บคำสั่ง, exit status และผลสรุป → แจ้ง defect พร้อมขั้นตอนทำซ้ำ.
 
 ### 5. ไฟล์และโฟลเดอร์หลัก
 
-- `source/api/tests/unit/`: `config.test.js`, `password.test.js`, `shuttleDb.test.js`, `shuttleValidator.test.js`
-- `source/api/tests/integration/`: `auth.api.test.js`, `schedules.api.test.js`, `shuttle.api.test.js`
-- `source/frontend/src/i18n/translations.test.js`
-- `source/frontend/src/services/shuttleService.test.js`
-- `source/frontend/src/utils/institutionalEmail.test.js`, `requestSummary.test.js`
-- `source/api/scripts/check-project.mjs`
-- `source/frontend/scripts/check-project.mjs`
+- Backend: `source/api/tests/integration/auth.api.test.js`, `vehicleRequests.api.test.js`, `adminRequests.api.test.js`; `tests/unit/requestValidator.test.js`, `shuttleDb.test.js`
+- Frontend: `src/utils/vehicleRequestForm.test.js`, `src/services/vehicleRequestService.test.js`, `src/i18n/translations.test.js`, `src/pages/requestWorkflowStructure.test.js`
+- Checkers: `source/api/scripts/check-project.mjs`, `source/frontend/scripts/check-project.mjs`
 
 ### 6. วิธีรันและตรวจสอบ
 
-คำสั่ง root-level จาก `source/` ที่ใช้ตรวจรอบล่าสุด:
+จาก `source/`:
 
 ```bash
 npm test
 npm run check
 npm run build
-git diff --check
+DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api
 ```
 
-แยก suite ได้ด้วย `npm test --prefix api` และ `npm test --prefix frontend`. API check: `npm run check --prefix api`; UI check: `npm run check --prefix frontend`. Build เฉพาะ UI: `npm run build --prefix frontend`.
-
-ผลที่ตรวจล่าสุด: backend 49/49 tests ใน 7 files; frontend 17/17 ใน 4 files; API checks 4/4; frontend checks 7/7; root production build ผ่าน; disposable reset และ HTTP smoke ครอบคลุมสอง campus, domain acceptance/rejection, confirmed/waitlist/duplicate, cancellation/FIFO promotion และ expiry. ไม่มี graphical browser ใน environment จึงไม่มี click-through E2E/screenshot ที่อ้างว่าผ่าน
+ณ รอบ audit ที่บันทึกไว้ `npm test` ผ่าน backend 52 tests/7 files และ frontend 19 tests/5 files; check ผ่าน API 4/4 และ frontend 7/7; build ผ่าน. รันใหม่ก่อนส่งมอบหาก source เปลี่ยน.
 
 ### 7. ปัญหาที่พบบ่อย
 
-- Test ใช้ข้อมูลเก่า: ตรวจ `DB_FILE` และ reset เฉพาะ disposable database
-- API integration ล้มก่อน route: ตรวจ DB initialization, `NODE_ENV`, `JWT_SECRET` config และ port/environment
-- UI service test fail: ตรวจ endpoint/base URL, request body, token/header และ API response contract
-- 401 เทียบกับ 400: ตรวจ token setup กับ request validation แยกกัน
-- Build fail แต่ tests ผ่าน: ตรวจ import, JSX, Vite config และ environment build; test suite ไม่ได้ compile ทุก route configuration เหมือน production build
-- Concurrent test fail: ตรวจ driver/database ที่กำลังใช้; ผล local SQLite ไม่ยืนยัน remote storage
+- API test พังเพราะ schema เก่า: ใช้ DB disposable และตรวจ env ชี้ไปยังไฟล์นั้น.
+- `401/403/404` ที่คาดไม่ตรง: ตรวจ token, role, owner และ ID fixture.
+- เวลา test ไม่นิ่ง: ใช้วันที่อนาคตและ ISO datetime ที่สร้างใกล้เวลารันทดสอบ.
+- Frontend static check ผ่านไม่ได้ยืนยัน visual browser behavior; ไม่มี browser E2E ใน repo ที่ตรวจนี้.
+- Build fail แต่ unit tests ผ่าน: ตรวจ Vite compile/import/dependency separately.
 
 ### 8. สิ่งที่ควรอธิบายตอนนำเสนอ
 
-บอก test types และสิ่งที่แต่ละชุดพิสูจน์; ยก FIFO equal-timestamp tie และผู้ใช้ 6 คนแย่ง 1 seat; แยก automated test/check/build ออกจาก browser E2E; แสดงคำสั่งและผลจริงแทนคำว่า “ทดสอบแล้ว” แบบไม่มีหลักฐาน
+สรุป auth/validation, one-way/round-trip, ownership, cancellation retention, admin guard, overlap test, language/build checks. แยกผลที่รันจริงจากข้อจำกัดที่ยังไม่ได้ทดสอบ production/browser.
 
 ### 9. การส่งต่องานให้บทบาทอื่น
 
-- ส่ง Backend: failing request, status/code, test file และ expected DB state
-- ส่ง Frontend: route, language, browser-independent state, mocked/API result และ reproduction steps
-- ส่ง Product Owner: acceptance ที่ผ่าน/ไม่ผ่าน, risk ระดับผู้ใช้, test/build counts และ limitation ที่ยังค้าง
+รายงาน Frontend/Backend ด้วย test name, command, expected/actual และ reproduction steps; ส่ง Product Owner เฉพาะผลกระทบ acceptance/readiness; เก็บหลักฐานและ environment/database ที่ใช้.
 
-## API reference โดยยึด route ปัจจุบัน
+## API endpoint reference
 
-| Method | Path | Auth | หน้าที่ |
-|---|---|---|---|
-| `GET` | `/api` | ไม่ต้อง | ข้อมูลสถานะ API |
-| `GET` | `/api/health` | ไม่ต้อง | health และ database connection |
-| `POST` | `/api/auth/login` | ไม่ต้อง | ตรวจ login และส่ง JWT |
-| `GET` | `/api/campuses` | ไม่ต้อง | คืนสอง service locations |
-| `GET` | `/api/schedules?originId=&destinationId=&date=` | ไม่ต้อง | ค้นหาตารางรถ; filter ผิดตอบ 400 |
-| `GET` | `/api/schedules/:id` | ไม่ต้อง | รายละเอียด schedule |
-| `POST` | `/api/bookings` | Bearer JWT | สร้าง confirmed หรือ waitlisted booking |
-| `GET` | `/api/bookings/my` | Bearer JWT | รายการของ user ปัจจุบัน |
-| `DELETE` | `/api/bookings/:id` | Bearer JWT + owner | ยกเลิก booking ของตน |
-| `DELETE` | `/api/bookings/:id/cancel-admin` | Bearer JWT + admin | ยกเลิกรายการในสิทธิ์ admin |
+Contract ฉบับเต็มอยู่ใน `source/API_CONTRACT.md`.
 
-ไม่มี registration endpoint
+| Method | Endpoint | สิทธิ์ / ความหมาย |
+|---|---|---|
+| `GET` | `/api/health` | Public health check |
+| `POST` | `/api/auth/login` | Login; exact `@live.rmutl.ac.th` domain |
+| `GET` | `/api/locations` | สองจุดบริการ |
+| `POST` | `/api/vehicle-requests` | ผู้ใช้ที่ login; สร้าง PENDING |
+| `GET` | `/api/vehicle-requests/my` | ผู้ใช้ที่ login; รายการของตน |
+| `GET` | `/api/vehicle-requests/:id` | ผู้ใช้เจ้าของคำขอ |
+| `PATCH` | `/api/vehicle-requests/:id/cancel` | เจ้าของ; เฉพาะ PENDING |
+| `GET` | `/api/admin/vehicle-requests` | Admin; review queue/filter |
+| `GET`, `POST` | `/api/admin/vehicles` | Admin; ดู/ลงทะเบียนรถจริง |
+| `PATCH` | `/api/admin/vehicles/:id/active` | Admin; เปิด/ปิดรถ |
+| `PATCH` | `/api/admin/vehicle-requests/:id/approve` | Admin; อนุมัติและเลือก assignment แบบ optional |
+| `PATCH` | `/api/admin/vehicle-requests/:id/reject` | Admin; ต้องส่ง rejection reason |
+| `PATCH` | `/api/admin/vehicle-requests/:id/complete` | Admin; จบคำขอ APPROVED |
 
-## ตารางฐานข้อมูลตาม `source/api/data/schema.sql`
+## ตารางฐานข้อมูล
 
-| ตาราง | เนื้อหาและข้อบังคับหลัก |
+| ตาราง | เนื้อหา |
 |---|---|
-| `users` | ชื่อ, unique email, role `user/admin`, `password_hash`, `created_at` |
-| `campuses` | ชื่อสถานที่ unique; seed มี Jed Yod และ Doi Saket |
-| `schedules` | `origin_id`, `destination_id`, เวลาเดินทาง, capacity, available seats, status, created time; foreign keys ไป campuses |
-| `bookings` | user/schedule foreign keys, status `confirmed/waitlisted/cancelled`, diagnostic `waitlist_seq`, created time |
+| `users` | ชื่อ, unique email, role, scrypt password hash, วันที่สร้าง |
+| `vehicles` | รหัสรถ, ความจุ, ฐาน Jed Yod, active, timestamps |
+| `vehicle_requests` | เจ้าของ, เส้นทาง, trip type, เวลา, passengers, purpose/note, status, optional vehicle/rejection reason, timestamps |
 
-Indexes: schedule search `(origin_id, destination_id, departure_time)`, FIFO `(schedule_id, created_at, id)`, bookings by user, และ partial unique booking `(user_id, schedule_id)` เฉพาะ status ที่ไม่ใช่ cancelled
+## คำสั่งรันและหลักฐานตรวจสอบ
 
-## คำสั่งเตรียม demo และหลักฐาน
-
-จาก `source/`:
+จาก `source/`, ใช้ terminal แยกกัน:
 
 ```bash
-npm install --prefix api
-npm install --prefix frontend
-DB_FILE=/tmp/rmutl-shuttle-demo.db npm run db:reset --prefix api
-DB_FILE=/tmp/rmutl-shuttle-demo.db npm run dev --prefix api
+npm run dev --prefix api
 npm run dev --prefix frontend
 ```
 
-ใช้คนละ terminal สำหรับ API และ frontend. Demo seed login ที่ยืนยันจาก seed: `tan.khanit@live.rmutl.ac.th` / `rmutl1234`; ใช้เฉพาะฐานข้อมูล demo. เก็บหลักฐานโดยบันทึก git revision, คำสั่ง, test output/count, ผล query/HTTP smoke ที่ไม่รวม token/password และภาพหน้าจอเฉพาะเมื่อมี browser ให้ตรวจจริง. อย่าบันทึก secret หรือข้อมูลผู้ใช้จริง
+API ปกติ `http://localhost:3001`, frontend `http://localhost:5173`. Verification commands: `npm test`, `npm run check`, `npm run build`. Disposable reset: `DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api`. คำสั่ง reset สำรอง target ที่มีอยู่ก่อนแทนไฟล์; ห้ามชี้ไปยัง production/user DB. Seed มี 10 บัญชี demo และไม่มีรถ/คำขอ. รหัส demo `rmutl1234` ใช้เฉพาะ development.
 
-## การจำแนกปัญหา
+## ข้อจำกัดที่ต้องสื่อสาร
 
-| อาการ | จุดตรวจแรก |
-|---|---|
-| เว็บโหลดไม่ได้ | Vite process/port, build output และ browser console เมื่อมี browser |
-| หน้าเว็บขึ้นแต่ API ไม่ตอบ | API process, `/api/health`, base URL, CORS, port |
-| API เปิดแต่ DB degraded | `DB_FILE`, database initialization, schema compatibility, file permission |
-| Login ปฏิเสธ | email suffix/payload, seeded/operator account, scrypt verification; แยก 400 domain/input กับ 401 credential |
-| Booking/cancel ผิด | JWT/owner role, schedule expiry, active duplicate, capacity, DB transaction/test output |
-| Thai/English ผิด | context state, dictionary key, fallback, document `lang`; API field identifiers ควรคงเดิม |
-| Test/build ต่างกัน | ระบุว่าล้มใน unit/integration/check/build; อย่าใช้ผลประเภทหนึ่งแทนอีกประเภท |
+ยังไม่ได้ deploy หรือทดสอบ persistent production DB; ยังไม่มี fleet จริง, GPS, dispatch integration, email/push notification, หรือ browser E2E. ผู้ใช้ตรวจสถานะโดยเปิด My Requests. Admin approval มี authorization ใน API แต่ production role provisioning และขั้นตอนปฏิบัติงานยังต้องกำหนด. ข้อมูล booking เก่าไม่ migrate เพราะข้อมูลวัตถุประสงค์และ service window ขาด.
 
-## Glossary
+## คำศัพท์ย่อ
 
-- **API**: จุดให้บริการข้อมูลและคำสั่งผ่าน HTTP
-- **JWT**: token ที่ backend เซ็นเพื่อยืนยันตัวตนใน request
-- **scrypt**: password key-derivation function ที่ใช้ salt เพื่อเก็บรหัสผ่านเป็น hash
-- **SQLite transaction**: กลุ่มคำสั่งฐานข้อมูลที่ commit พร้อมกันหรือ rollback เมื่อผิดพลาด
-- **FIFO**: มาก่อนมีสิทธิ์ก่อน; ที่นี่เรียงด้วย `created_at` และ `id`
-- **Waitlist**: รายการรอที่นั่งเมื่อเที่ยวรถเต็ม
-- **Integration test**: ทดสอบการทำงานร่วมกันหลายชั้น เช่น HTTP route/service/database
-- **Disposable database**: ฐานข้อมูลชั่วคราวที่สร้างใหม่หรือลบได้โดยไม่กระทบข้อมูลที่ต้องเก็บ
-- **Reduced motion**: การลด/ปิดการเคลื่อนไหวตาม `prefers-reduced-motion`
+- **API:** ช่องทางที่ frontend ขอ/ส่งข้อมูลไปยัง backend.
+- **JWT:** token ที่ server ลงนาม ใช้ยืนยันตัวตนและ role.
+- **scrypt:** วิธี derive/hash password ที่มี salt.
+- **SQLite transaction:** กลุ่มคำสั่งฐานข้อมูลที่ commit/rollback ร่วมกัน.
+- **PENDING:** รับคำขอแล้ว รอเจ้าหน้าที่ตัดสินใจ.
+- **Ownership:** การจำกัดการอ่าน/เปลี่ยน request ให้เจ้าของตาม user จาก token.
+- **Responsive:** layout ปรับตามขนาดหน้าจอ.
 
 ## Checklist ก่อนนำเสนอ
 
-### Product Owner / Lead
-- [ ] อธิบายขอบเขตสองจุดให้บริการ, user flow, Sprint 1–4 และ acceptance criteria ได้
-- [ ] บอกข้อจำกัด deployment/persistent storage และไม่อ้าง remote concurrency ที่ยังไม่ตรวจ
-- [ ] ส่ง scenario และผลที่คาดให้ Frontend, Backend และ QA ตรงกัน
-
-### Frontend Developer
-- [ ] รัน API/frontend และแสดง dashboard, search, detail, My Bookings ได้
-- [ ] แสดง Thai default, switch EN, guide แบบเปิดเอง และ loading/empty/error state
-- [ ] อธิบายว่า JWT อยู่ใน memory และ booking success มาจาก API response
-
-### Backend Developer
-- [ ] อธิบาย login domain, JWT/scrypt, route/service/database flow และ schema ได้
-- [ ] อธิบาย duplicate/overbooking guard, transaction, cancellation และ FIFO tie-break ได้
-- [ ] ใช้เฉพาะ disposable DB ใน demo/reset และแจ้งข้อจำกัด remote DB
-
-### QA & Test
-- [ ] รัน `npm test`, `npm run check`, `npm run build`, `git diff --check` และเก็บผลจริง
-- [ ] อธิบาย auth/filter/expiry/cancel/FIFO/concurrency coverage และขอบเขตของแต่ละ test
-- [ ] แยกข้อเท็จจริงที่ตรวจจาก test/build ออกจาก browser E2E/deployment ที่ยังไม่มี
+- [ ] ทุกคนอธิบายได้ว่าการ submit สร้าง `PENDING` ไม่ใช่ approval.
+- [ ] ใช้ DB disposable และสอง location เท่านั้น.
+- [ ] Login ด้วยบัญชี demo และแสดงไทย/อังกฤษ.
+- [ ] ทดลอง request, My Requests, detail และ cancellation พร้อม history.
+- [ ] ถ้าสาธิต staff ให้แยกบัญชี admin และใช้รถ demo ที่ติดป้ายชัดเจน.
+- [ ] อธิบายข้อจำกัด: ไม่มี GPS, notification, production deploy หรือ browser E2E.
+- [ ] นำเสนอความรับผิดชอบทางเทคนิคให้ถูกต้อง: Frontend ทำ UI/API integration; Backend ทำ API/database/JWT/rules; QA ทำ verification; Product Owner ทำ scope/acceptance/readiness.
