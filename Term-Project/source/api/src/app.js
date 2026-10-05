@@ -44,7 +44,7 @@ export function createApp() {
   } else {
     // development: หน้าเว็บอยู่ที่ Vite (พอร์ต 5173) · / ของ API ตอบข้อความบอกทางแทน
     app.get('/', (req, res) => {
-      res.json({ message: 'Campus Service API (dev) — หน้าเว็บอยู่ที่ Vite พอร์ต 5173', api: '/api' });
+      res.json({ message: 'RMUTL Shuttle API (dev) — หน้าเว็บอยู่ที่ Vite พอร์ต 5173', api: '/api' });
     });
   }
 

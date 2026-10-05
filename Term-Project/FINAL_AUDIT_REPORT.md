@@ -1,105 +1,118 @@
 # RMUTL Shuttle Booking System — Final Audit Report
 
 Audit date: 2026-10-06  
-Scope: Sprint 1–4 requirements in `AGENT_HANDOFF.md`, checked against current API, frontend, schema, tests, and deployment configuration.
+Source of truth: current repository implementation and verification run recorded below.
 
-## Executive result
+## Result
 
-All stated Sprint 1–4 functional requirements are implemented in the current local codebase. The audit reran the complete test suite and production build successfully. Production deployment readiness is **partial**: the Render blueprint currently uses local SQLite on an ephemeral free plan, and no deployed environment or persistent remote database has been verified.
+The approved two-location domain, exact institutional login domain, bilingual active UI, warm responsive theme, API-confirmed booking feedback, cancellation confirmation, and optional help guide are implemented on top of the existing Express, React, SQLite, JWT, and scrypt application. The automated test suites, structural checks, disposable-database checks, HTTP smoke flow, production build, and final diff check are recorded below. A graphical browser E2E run and production deployment were not performed.
 
 ## Feature checklist
 
-| Sprint requirement | Status | Evidence / notes |
+| Feature | Status | Evidence |
 |---|---|---|
-| Sprint 1: exact `@live.rmutl.ac.th` institutional login | ✅ | `POST /api/auth/login`; domain is validated case-insensitively after normalization. No public signup exists. |
-| Required login fields and clear invalid-domain/credential errors | ✅ | Login validator and auth integration tests; invalid credentials return a generic 401. |
-| JWT issued and used; protected endpoints | ✅ | Bearer JWT middleware protects booking routes; frontend stores token in memory and attaches it to API requests. |
-| Password hashing | ✅ | Existing `node:crypto` scrypt utility reused. |
-| Shuttle DB schema, seed data, schema compatibility guard | ✅ | Schema and seed data in `api/data/schema.sql`; legacy-schema guard avoids silent use of an old DB. |
-| Sprint 2: Jed Yod and Doi Saket only | ✅ | Seeded campuses and `GET /api/campuses`; all seeded schedules use one of the two allowed directions. |
-| Select origin, destination, travel date; reject same campus | ✅ | Search UI and API filter validation. |
-| Schedule route, date, departure, capacity, confirmed count, available seats, status | ✅ | Schedule list/detail responses decorate DB rows with live booking counts and derived status. |
-| Filter schedules by origin, destination, and date | ✅ | Optional query filters validated and applied by schedule service. |
-| Expired schedule derivation and booking rejection | ✅ | Departure time is checked for returned status and before booking. |
-| Sprint 3: authenticated booking and one active booking per user/schedule | ✅ | Atomic booking path plus duplicate check and partial unique DB index. Rebooking after cancellation is permitted. |
-| Prevent expired booking and overbooking | ✅ | Expiry check and `BEGIN IMMEDIATE` local SQLite write transaction; concurrent integration test covers six users competing for one seat. |
-| View own bookings; cancel own confirmed bookings | ✅ | Authenticated `GET /api/bookings/my`, owner-checked cancellation, frontend My Bookings flow. |
-| Atomic cancellation and promotion | ✅ | Cancellation and possible promotion occur in the same immediate transaction. |
-| Full schedule joins waitlist; duplicate waitlist prevention | ✅ | New request becomes waitlisted when no seats remain; same active-booking constraint blocks duplicate waitlist entries. |
-| FIFO promotion by `(created_at, id)` | ✅ | Query explicitly orders by timestamp then ID; test forces tied timestamps and reversed diagnostic sequence. |
-| No promotion when cancelling a waitlisted entry | ✅ | Covered by integration test. |
-| Sprint 4: login, dashboard, search, list, detail, My Bookings | ✅ | Active React Router routes and pages. |
-| Loading, empty, error, success, expired, full/waitlisted states | ✅ | Reusable loading/empty/error components, booking outcome notice, derived status badges and disabled/omitted booking action for expired schedules. |
-| Real API data and desktop/mobile layout | ✅ | Frontend shuttle service calls API; responsive CSS breakpoints are present. |
+| Exactly two service locations, Jed Yod and Doi Saket | PASS | Seed reset and HTTP campus list return exactly those names; seeded schedules use both opposite directions only. |
+| Opposite travel directions; no same-location route | PASS | Schedule seed, API validation, UI validation, tests. |
+| Login only with exact `@live.rmutl.ac.th`, case-insensitive | PASS | Backend and frontend validators, seeded accounts, operator account tool, auth tests, HTTP smoke. No registration endpoint/page/link exists. |
+| JWT and scrypt authentication | PASS | Existing auth architecture retained; protected booking routes use bearer JWT. |
+| Schedule search, list, details, date filter and derived expiry | PASS | Live API-backed active pages; expired schedules are unavailable for booking. |
+| Booking, duplicate protection, overbooking prevention | PASS | Transactional service, unique active-booking constraint, integration and concurrency tests. |
+| Cancellation, ownership checks, FIFO waitlist promotion | PASS | Cancellation transaction promotes by `created_at`, then booking `id`; integration tests cover ties and cancellation cases. |
+| Thai and English UI | PASS | Thai first-visit default; `ไทย | EN` switch updates without reload; optional persisted selection; dictionary fallback; translated active screens and guide. |
+| Warm, responsive, accessible UI | PASS | Shared CSS variables, visible focus, responsive rules, semantic dialog, reduced-motion support. No university/custom logo; text wordmark and generic bus motif only. |
+| Booking feedback | PASS | Ticket uses actual API response and appears only after success. Waitlist has no confirmed stamp and no fabricated queue position. |
+| Optional user guide | PASS | Normal `/guide` route and user-selected nav item, no onboarding interruption. |
+| Loading, empty, error, success feedback | PASS | Shared states and active flow feedback. |
 
 ## API checklist
 
-| Endpoint | Authentication | Purpose / verified behavior |
+| Endpoint | Access | Purpose |
 |---|---|---|
-| `GET /api` | Public | API identity response. |
-| `GET /api/health` | Public | Reports API and DB connectivity for deployment health checks. |
-| `POST /api/auth/login` | Public | Validates fields/domain/credentials and returns JWT plus user identity. The application is login-only; accounts are seeded or provisioned by an operator with the account script. |
-| `GET /api/campuses` | Public | Returns supported campus reference data. |
-| `GET /api/schedules?originId=&destinationId=&date=` | Public | Validates optional filters, returns current counts, seats, and derived status. Invalid filters return 400 with details. |
-| `GET /api/schedules/:id` | Public | Returns a schedule detail or 404. |
-| `POST /api/bookings` | JWT required | Creates confirmed or waitlisted booking; rejects malformed schedule IDs, duplicates, and expired schedules. |
-| `GET /api/bookings/my` | JWT required | Lists the signed-in user’s bookings. |
-| `DELETE /api/bookings/:id` | JWT required | Cancels the owner’s booking; rejects another user; cancellation of a confirmed booking promotes the first waiter. |
-| `DELETE /api/bookings/:id/cancel-admin` | Admin JWT required | Administrative cancellation route is present. |
+| `GET /api` | Public | API identity/status information. |
+| `GET /api/health` | Public | Health and database connectivity. |
+| `POST /api/auth/login` | Public | Validates credentials and exact institutional email domain; returns JWT and user data. |
+| `GET /api/campuses` | Public | Returns the two supported service locations. |
+| `GET /api/schedules?originId=&destinationId=&date=` | Public | Validates filters; returns matching schedules with current seats/counts/status. |
+| `GET /api/schedules/:id` | Public | Returns schedule detail. |
+| `POST /api/bookings` | Bearer JWT | Creates confirmed or waitlisted booking. |
+| `GET /api/bookings/my` | Bearer JWT | Lists the authenticated user’s bookings. |
+| `DELETE /api/bookings/:id` | Owner bearer JWT | Cancels the owner’s booking; confirmed cancellation may promote the first waiter. |
+| `DELETE /api/bookings/:id/cancel-admin` | Admin bearer JWT | Administrative cancellation. |
+
+There is no registration API. Accounts come from the seed or an operator running the account provisioning script.
 
 ## Database schema summary
 
-- **`users`**: name, unique email, user/admin role, scrypt password hash, creation time.
-- **`campuses`**: unique campus names; seeded with exactly Jed Yod and Doi Saket. All seed schedule endpoints use only the two permitted opposite directions.
-- **`schedules`**: origin/destination foreign keys, ISO departure time, capacity, cached available seats, stored active/expired status, creation time. Runtime schedule status is derived using departure time and live booking counts.
-- **`bookings`**: user/schedule foreign keys, confirmed/waitlisted/cancelled state, diagnostic `waitlist_seq`, creation time.
-- **Indexes/constraints**: schedule search index; FIFO `(schedule_id, created_at, id)` index; user booking index; partial unique index preventing more than one non-cancelled booking per user and schedule.
-- Writes that claim/cancel seats use immediate SQLite transactions. `available_seats` is recomputed from booking rows inside those transactions.
-- The schema setup script drops/recreates tables when explicitly run as a reset; the startup compatibility check does not automatically destroy or migrate a legacy database.
+- `users`: unique institutional email, name, role, scrypt password hash, creation time.
+- `campuses`: unique location names; seed is exactly Jed Yod and Doi Saket.
+- `schedules`: origin/destination foreign keys, departure timestamp, capacity, available seats, stored status and creation time. Runtime expiry is derived from departure time.
+- `bookings`: user/schedule references, confirmed/waitlisted/cancelled status, diagnostic waitlist sequence and creation timestamp.
+- Indexes cover schedule search, FIFO order, and user bookings. A partial unique index prevents multiple non-cancelled bookings by the same user for the same schedule.
+- Booking/cancellation use SQLite immediate transactions; cancellation and FIFO promotion occur atomically.
 
-## Test and build summary
+### Safe development database reset
 
-Freshly executed from `Term-Project/source` on 2026-10-06:
+To initialize an isolated disposable database from `source/`:
 
-- Current after Phase 2: `npm test --prefix api` — **PASS**, 49 tests across 7 files; `npm test --prefix frontend` — **PASS**, 12 tests across 3 files.
-- Prior full-suite baseline before the approved domain/localization changes: `npm test` — **PASS**, backend 44 and frontend 7.
-- `npm run build` — **PASS**: Vite production bundle generated; root build completed API dependency installation.
-- Handoff also records `npm run check` as **PASS** (API checks 4/4 and frontend checks 4/4). It was not rerun during this audit.
-- Integration coverage includes login/domain/missing fields, campus and schedule retrieval/filtering, malformed filter validation, departure-based expiry, booking/cancel/rebook, duplicate rejection, ownership enforcement, FIFO tie breaking, waitlisted cancellation, and concurrent competition for one seat.
+```bash
+DB_FILE=/tmp/rmutl-shuttle-dev.db npm run db:reset --prefix api
+```
+
+To explicitly reset the default developer database, stop the API first, then run `npm run db:reset --prefix api`. The script makes a timestamped backup beside an existing file before replacing it. Review and preserve that backup. Do not run reset against production or a user database. Startup does not silently migrate or delete an incompatible Campus Service database.
+
+## Test summary (executed 2026-10-06)
+
+From `source/`:
+
+- `npm test` — PASS: backend **49/49** across 7 files; frontend **17/17** across 4 files.
+- `npm run check` — PASS: API **4/4**, frontend **7/7**.
+- `npm run build` — PASS: Vite production build and root build script completed.
+- `git diff --check` — PASS after final documentation edits.
+- Disposable reset — PASS: 2 approved campuses, 8 schedules, 10 seeded live-domain users, only the two opposite route pairs, no invalid schedule endpoints.
+- HTTP smoke against that disposable DB — PASS: exact campus list; mixed-case live-domain login; rejection of old/lookalike domains; confirmed booking; waitlist result; duplicate rejection; cancellation and FIFO promotion; expired booking rejection.
+- Backend integration suite includes concurrent users competing for the last seat and deterministic FIFO tie-breaking.
+- No graphical browser was installed, so no browser click-through E2E, visual screenshot, or manual animated interaction run is claimed. Language toggle, fallback, reduced-motion rules, guide wiring, and UI structure are covered by unit/static checks and build.
 
 ## Demo script
 
-1. Start the API from `Term-Project/source`: `npm run dev --prefix api` (use a development `.env` and run the documented DB setup if required). Start the frontend separately with `npm run dev --prefix frontend`.
-2. Open the Vite URL. Show the dashboard loading live upcoming schedules.
-3. Open **Schedules**, choose different origin/destination campuses and a travel date, and search. Demonstrate that choosing the same campus is rejected by the UI/API validation.
-4. Open a schedule detail and point out departure, capacity, confirmed count, available seats, and status.
-5. Sign in using a seeded demo account, for example `tan.khanit@live.rmutl.ac.th` / `rmutl1234` (development/demo credentials only; the app has no signup flow).
-6. Book an available trip, show the confirmed notice, then open **My Bookings** and cancel it.
-7. For the waitlist demo, reduce a seeded schedule capacity to one in a disposable development DB, sign in as two distinct seeded accounts, book once with each, and cancel the confirmed booking. Show the second account promoted. Restore/reset the demo DB after the demonstration.
-8. Show an expired schedule and its unavailable booking action. If the seeded expired dates no longer match the current clock, set one departure time to the past in a disposable demo DB.
-9. Show the mobile layout using the browser’s responsive viewport.
+1. Start the API and frontend using the commands below, then open the Vite URL.
+2. Show Thai as the initial language and switch to English using `ไทย | EN`; show the User Guide only after selecting its navigation item.
+3. Show the dashboard, then search between Jed Yod and Doi Saket for a date. Point out the same-origin validation.
+4. Open a schedule detail and explain departure, capacity, availability, status, and expiry behavior.
+5. Log in with a seed demo account, e.g. `tan.khanit@live.rmutl.ac.th` / `rmutl1234` (development only).
+6. Book an available trip; show the API-confirmed ticket and My Bookings. Explain that the ticket is shown only after a successful response.
+7. If demonstrating a full trip, use two demo accounts and a disposable database with a one-seat schedule. Show waitlist and FIFO promotion after the confirmed booking is cancelled.
+8. Show cancellation confirmation and an expired trip’s disabled booking action.
 
-Demo actions that modify the database should use a disposable, resettable development database, never the production DB.
+Use a disposable development database for all mutating demos.
 
 ## Presentation talking points
 
-- The project retains the existing Express, SQLite/libsql, React, and Vite structure while replacing the active request-service user flow with shuttle scheduling and booking.
-- The backend remains the authority for schedule availability, expiry, duplicate checks, and booking outcomes; the frontend presents live API results.
-- Seat claiming and cancellation are transactional. Cancellation promotes waitlisted users FIFO using timestamp with ID tie-break, including deterministic behavior when timestamps match.
-- Validation and integration tests cover error cases and concurrent requests in the configured local SQLite implementation.
-- The UI completes a user journey from campus/date search through confirmed booking or waitlist and cancellation.
-- Deployment configuration is prepared, but production persistence and remote-database transaction behavior are not yet demonstrated.
+- Scope is two supported service locations and travel in both directions.
+- The backend controls availability, expiry, duplicate checks, and booking outcome; the frontend renders real API data.
+- SQLite transactions protect seat claims, cancellation, and promotion; the waitlist uses FIFO by creation time then ID.
+- Login requires an exact `@live.rmutl.ac.th` suffix, but case is ignored. The application has no public registration.
+- The UI defaults to Thai and supports English without reload, including an optional guide.
+- Local automated verification passes. Persistent production storage and deployment have not been verified.
 
-## Known limitations and remaining work
+## Known limitations and delivery readiness
 
-1. Render’s configured free plan uses ephemeral local SQLite. Select and configure persistent production storage before relying on deployed bookings.
-2. Local SQLite concurrency is tested; no remote Turso/other database driver is configured or verified. Do not claim equivalent remote transaction behavior until tested.
-3. Existing developer `api/data/campus.db` files may contain the Campus Service schema. Back up first, then explicitly migrate/reset; startup intentionally fails rather than silently resetting incompatible data.
-4. The frontend keeps the JWT in memory only; reloading the page signs the user out.
-5. No production deployment, persistent DB configuration, screenshots, or deployment evidence were produced in this audit.
-6. Seeded demo credentials are for development/demo use and must not be treated as production credentials.
-7. Some inactive Campus Service components/files remain in the source tree outside active shuttle routes; the active user flow is Shuttle-specific.
+1. Production storage/deployment is not configured or verified. The current Render free-plan SQLite setup is ephemeral and unsuitable for persistent booking records.
+2. SQLite concurrency/FIFO behavior is tested locally; no remote database driver or remote transaction behavior is verified.
+3. The JWT is kept in application memory; a page reload requires login again.
+4. No graphical browser E2E or screenshot evidence was produced because the environment had no browser installed.
+5. Demo seed credentials are development-only. Production credentials and `JWT_SECRET` must be provisioned securely.
+6. Inactive Campus Service source files remain outside active Shuttle routes.
 
-## Deployment readiness
+**Readiness:** local development and demonstration ready; production deployment readiness is partial and must not be represented as verified.
 
-**Partial / not production-ready for persistent booking data.** Build and local tests pass. Render has the service name, source root, health check, and required production JWT secret prompt. Production storage selection/configuration, live deployment verification, and deployment evidence remain outstanding.
+## Exact local start commands
+
+From `source/`, use separate terminals:
+
+```bash
+npm run dev --prefix api
+npm run dev --prefix frontend
+```
+
+API defaults to `http://localhost:3001`; Vite defaults to `http://localhost:5173`. Configure a development `.env` and initialize the intended development database first when needed.

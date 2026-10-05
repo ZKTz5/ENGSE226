@@ -299,7 +299,8 @@ Note on authentication:
 1. **Phase 1: DB & Auth Migration**
    - Update `schema.sql` and `authService.js` (RMUTL domain check).
    - Reconcile roles so authenticated RMUTL users (not just staff) can book.
-   - Seed real users (registration is optional and not required by the spec).
+   - Seed demo users and provision real accounts through the operator script;
+     the application has no public registration or self-signup flow.
 2. **Phase 2: Schedule Engine**
    - Implement `campuses` and `schedules` services/routes.
    - Add seed data for testing.
@@ -442,25 +443,58 @@ evidence.
 
 ### Verification
 
-- Backend suite: **PASS**, `npm test --prefix api` — 44 tests in 7 files.
-- Backend smoke check: **PASS**, `npm run check --prefix api` — 4/4 checks.
-- Root check: **PASS**, `npm run check` — API 4/4 and frontend 4/4.
-- Root test suite: **PASS**, `npm test` — backend 44/44 and frontend 7/7.
-- Root production build: **PASS**, `npm run build` — frontend bundle generated and API dependencies installed.
-- `git diff --check`: passed.
-- Frontend suite: **PASS**, `npm test --prefix frontend` — 7 tests in 2 files.
-- Frontend production build: **PASS**, `npm run build --prefix frontend`.
+- Current full suite: **PASS**, `npm test` — backend 49/49 in 7 files and
+  frontend 17/17 in 4 files. This includes auth/schedule/booking integration,
+  FIFO tie-break, and six-way concurrent last-seat tests.
+- API smoke check: **PASS**, `npm run check --prefix api` — 4/4.
+- Frontend structure/accessibility check: **PASS**, `npm run check --prefix frontend` — 7/7.
+- Root checks: **PASS**, `npm run check` — API 4/4 and frontend 7/7.
+- Production build: **PASS**, `npm run build` — Vite production bundle generated
+  and API dependencies installed.
+- Fresh disposable database reset and direct SQL invariant check: **PASS** —
+  exactly Jed Yod and Doi Saket, 8 allowed schedules, 10 live-domain seed users.
+- Disposable HTTP smoke: **PASS** — mixed-case live-domain login, old/lookalike
+  domain rejection, confirmed booking, waitlist, duplicate rejection,
+  cancellation/FIFO promotion, and expired schedule rejection.
+- Thai default/toggle logic, document language, dictionary fallback, reduced
+  motion CSS, and help route are covered by frontend unit/static checks. No
+  graphical browser is installed in the environment, so no click-through browser
+  E2E run or screenshot was produced.
+- Final `git diff --check`: pending the documentation-only final updates below.
 
 ### Final Sprint 1–4 audit (2026-10-06)
 
 - Audited the active implementation against every requirement in this handoff;
   no Sprint 1–4 functional requirement is currently identified as missing.
-- Fresh verification: `npm test` passed (backend 44/44, frontend 7/7) and
-  `npm run build` passed from `source/`.
+- Current verification after the approved domain, localization, UI, ticket,
+  cancellation, and guide changes: backend tests 49/49 (7 files), frontend
+  tests 17/17 (4 files), API checker 4/4, frontend checker 7/7, and production
+  build passed from `source/`.
 - The detailed feature/API/schema checklist, demo script, presentation notes,
-  and operational limitations are in `../FINAL_AUDIT_REPORT.md`.
+  and operational limitations are in `../FINAL_AUDIT_REPORT.md`. Setup and
+  reset instructions are in `source/README.md`.
 - Deployment readiness remains partial: persistent production storage and a
   live deployment check have not been completed.
+
+### Final approved-change verification
+
+- Ran `npm test`, `npm run check`, and `npm run build` from `source/` after the
+  implementation changes. Results: backend 49/49, frontend 17/17, API checks
+  4/4, frontend checks 7/7, and production build passed.
+- Reset `/tmp/rmutl-shuttle-verification-final.db` and checked its data: exactly
+  Jed Yod and Doi Saket, 8 schedules using only the two opposite route pairs,
+  10 seeded users on the accepted domain, and no invalid/equal endpoints.
+- Ran the API against that disposable DB and verified campus/schedule responses,
+  mixed-case accepted login, rejection of the old and lookalike domains,
+  confirmed booking, waitlist, duplicate rejection, confirmed cancellation with
+  FIFO promotion, and expired schedule rejection.
+- `git diff --check` passed after final report and setup documentation edits.
+- No graphical browser was available. No click-through browser E2E or screenshot
+  is claimed; toggle behavior, dictionary fallback, responsive/accessibility
+  wiring, and reduced-motion support were verified through unit/static checks.
+- No production database or user database was reset. The development reset
+  command creates a timestamped backup beside an existing file before replace;
+  isolated verification used `/tmp`.
 
 ### Remaining project work
 
@@ -476,6 +510,8 @@ evidence.
 - Render SQLite storage is ephemeral on the configured free plan; deployment is
   not ready for persistent booking data until a persistent database/storage target
   is selected. No production deployment or persistent database has been verified.
+- The UI language switch is verified by tested toggle logic, translations, and
+  static wiring checks; a graphical browser E2E environment is not installed.
 
 ### Changes in this phase
 
@@ -514,3 +550,18 @@ evidence.
 - Extended service tests for reading bookings, booking, and cancellation.
 - Frontend tests: **PASS**, 7/7. Production build: **PASS**.
 - The inactive tracked Campus Service files remain outside the active route tree.
+
+### Approved scope extension (two locations, live email, bilingual UI)
+
+- Replaced the three-location seed with exactly Jed Yod and Doi Saket and seeded
+  schedules only in the two allowed directions. The reset script backs up an
+  existing developer DB before explicit replacement.
+- Replaced the accepted email suffix with exact, case-insensitive
+  `@live.rmutl.ac.th`; updated seed accounts, the admin account tool, tests, and
+  login messages. The application remains login-only.
+- Added shared Thai/English localization, Thai default, immediate language
+  switching, localized active pages/status/errors/campus labels/dates, warm
+  brown responsive design, API-confirmed booking tickets, cancellation
+  confirmation, reduced-motion support, and an optional user guide.
+- Phase commits on this branch: `6f06305`, `be71fa8`, `217c96c`, `c86cba8`,
+  `9668c86`, `b116cbc`.

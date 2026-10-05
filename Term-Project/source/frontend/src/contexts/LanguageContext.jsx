@@ -12,6 +12,10 @@ export function getInitialLanguage(storage) {
   }
 }
 
+export function nextLanguage(current) {
+  return current === 'th' ? 'en' : 'th';
+}
+
 export function LanguageProvider({ children }) {
   const [language, setLanguage] = useState(() => getInitialLanguage(globalThis.localStorage));
 
@@ -23,7 +27,7 @@ export function LanguageProvider({ children }) {
   const value = useMemo(() => ({
     language,
     setLanguage,
-    toggleLanguage: () => setLanguage((current) => current === 'th' ? 'en' : 'th'),
+    toggleLanguage: () => setLanguage((current) => nextLanguage(current)),
     t: (key, values) => translate(language, key, values),
   }), [language]);
 

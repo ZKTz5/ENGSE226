@@ -1,124 +1,78 @@
 # RMUTL Shuttle Booking System
 
-ระบบค้นหาเที่ยวรถและจองรถรับส่งระหว่างวิทยาเขต · **React + Express API + SQLite**
+ระบบค้นหาและจองรถรับส่งระหว่าง **เจ็ดยอด (Jed Yod)** และ **ดอยสะเก็ด (Doi Saket)** เท่านั้น ให้บริการได้ทั้งสองทิศทาง พัฒนาบน React/Vite, Express, SQLite/libsql, JWT และ scrypt
 
-## สถาปัตยกรรม 3 ชั้น
+## ขอบเขตระบบ
 
-```
-┌─────────────┐   HTTP    ┌──────────────┐   SQL    ┌───────────┐
-│  React      │ ────────► │  Express API │ ───────► │  SQLite   │
-│  (frontend) │ ◄──────── │  (api)       │ ◄─────── │  campus.db│
-└─────────────┘   JSON    └──────────────┘   rows   └───────────┘
-   พอร์ต 5173              พอร์ต 3001              ไฟล์ในเครื่อง
-```
+- ค้นหาตารางรถด้วยต้นทาง ปลายทาง และวันที่; ต้นทางกับปลายทางต้องต่างกัน
+- จอง ยกเลิก และดูคิวสำรองที่เลื่อนตาม FIFO
+- เข้าสู่ระบบด้วยอีเมลที่ลงท้ายตรงตัวด้วย `@live.rmutl.ac.th` โดยไม่แยกตัวพิมพ์เล็ก/ใหญ่
+- ระบบเป็น login-only ไม่มีหน้าสมัครสมาชิกหรือ public self-signup บัญชีมาจาก seed หรือผู้ดูแลสร้างผ่านเครื่องมือบัญชี
+- ภาษาไทยเป็นค่าเริ่มต้นและสลับเป็น English ได้จากหน้าเว็บ
 
-| ชั้น | หน้าที่ | โฟลเดอร์ |
-|---|---|---|
-| Frontend | หน้าจอผู้ใช้ · เรียก API | `frontend/` |
-| API | auth · campus · schedule · booking routes/services | `api/src/` |
-| Database | เก็บบัญชีผู้ใช้ · วิทยาเขต · ตารางรถ · การจอง | `api/data/campus.db` |
+## ติดตั้งและเริ่มระบบในเครื่อง
 
-## วิธีรัน (development)
+ใช้ Node.js ตาม engines ใน package files (API ต้องการ `>=22.13.0`; frontend `>=22.12.0`). จากโฟลเดอร์ `source/`:
 
 ```bash
-# ชั้นฐานข้อมูล + API
-cd api
-npm install
-cp .env.example .env
-npm run db:setup      # สร้าง campus.db จาก schema.sql
-npm run dev           # API ที่ http://localhost:3001
-
-# ชั้น frontend (อีก terminal)
-cd frontend
-npm install
-npm run dev           # React ที่ http://localhost:5173
+npm install --prefix api
+npm install --prefix frontend
+cp api/.env.example api/.env   # ตั้งค่าเฉพาะเครื่องพัฒนา หากยังไม่มีไฟล์
+npm run db:setup --prefix api
+npm run dev --prefix api
 ```
 
-## วิธีรัน (production)
+เปิด terminal อีกหน้าต่าง:
 
 ```bash
-# build แบบเดียวกับ cloud (script อยู่ใน package.json ระดับบนสุด)
-NODE_ENV=production npm install
-NODE_ENV=production npm run build
-
-# start — เสิร์ฟทั้งหน้าเว็บและ API จากพอร์ตเดียว (สัปดาห์ 13: production ต้องตั้ง JWT_SECRET ไม่งั้นไม่ยอม start)
-NODE_ENV=production JWT_SECRET=<ค่าสุ่ม> PORT=10000 npm start
-# เปิด http://localhost:10000
+npm run dev --prefix frontend
 ```
 
-| ไฟล์ | ทำให้ production ทำงานอย่างไร |
-|---|---|
-| `frontend/.env.production` | `VITE_API_BASE_URL=` ว่าง → frontend เรียก `/api/...` บนโดเมนเดียวกัน |
-| `api/src/app.js` | production เสิร์ฟ `frontend/dist` · path ที่ไม่ใช่ `/api` ได้ index.html |
-| `package.json` | `build` ใช้ `--include=dev` เพราะ cloud ตั้ง NODE_ENV=production ตั้งแต่ build |
+ค่าเริ่มต้นคือ API `http://localhost:3001` และเว็บ Vite `http://localhost:5173` หากต้องเริ่ม backend/frontend คำสั่ง dev จะอ่าน `api/.env` และ frontend ใช้ `VITE_API_BASE_URL` เมื่อจำเป็น
 
-## Live Demo
+### รีเซ็ตฐานข้อมูลพัฒนาอย่างปลอดภัย
 
-🔗 (ใส่ URL หลัง deploy ขึ้น Render)
-
-หมายเหตุ: Render free tier — เปิดครั้งแรกช้า 30–60 วินาที · ข้อมูลที่เพิ่มจะกลับเป็นค่าตั้งต้นเมื่อ restart
-
-## ตรวจสุขภาพระบบ
+สร้าง/รีเซ็ตฐานข้อมูลชั่วคราวโดยไม่แตะไฟล์ฐานข้อมูลเดิม:
 
 ```bash
-curl http://localhost:3001/api/health
-# { "status": "ok", "env": "...", "database": { "connected": true, ... } }
+DB_FILE=/tmp/rmutl-shuttle-dev.db npm run db:reset --prefix api
 ```
 
-## Environment Variables
+การ reset ฐานข้อมูลพัฒนาเริ่มต้นต้องหยุด API ก่อน แล้วค่อยใช้ `npm run db:reset --prefix api`; สคริปต์สำรองไฟล์เดิมเป็นชื่อ `.backup-<timestamp>` ก่อนแทนที่ ห้ามใช้คำสั่ง reset กับข้อมูล production หรือฐานข้อมูลผู้ใช้ที่ต้องเก็บไว้ สคริปต์เริ่มระบบจะไม่ลบหรือ migrate schema Campus Service เก่าโดยอัตโนมัติ
 
-| ตัวแปร | ค่าเริ่มต้น | ความหมาย |
-|---|---|---|
-| `NODE_ENV` | development | สภาพแวดล้อม |
-| `PORT` | 3001 | พอร์ต API |
-| `CORS_ORIGIN` | http://localhost:5173 | ที่อยู่ frontend ที่อนุญาต |
-| `DB_FILE` | api/data/campus.db | ไฟล์ฐานข้อมูล |
-| `JWT_SECRET` | (dev: ค่าสำหรับพัฒนา) | secret สำหรับเซ็น JWT · production ไม่ตั้ง = ไม่ยอม start |
-
-## API Endpoints
-
-ดู `API_CONTRACT.md` สำหรับรายละเอียดครบ · สรุป: `/api/auth`, `/api/campuses`, `/api/schedules`, `/api/bookings`, `/api/health`
-
-## การตัดสินใจด้านการออกแบบ
-
-- **แยก 3 ชั้นชัดเจน** — เปลี่ยนแหล่งข้อมูลได้โดยกระทบชั้นเดียว (พิสูจน์มา 4 ครั้งใน Week 05–10)
-- **เลือก SQLite** — ข้อมูลมีโครงและความสัมพันธ์ชัด · ดู `DATABASE_CHOICES.md`
-- **config รวมศูนย์** — ไม่ hardcode · แยก dev/production ด้วย `NODE_ENV`
-
-## การทดสอบ (สัปดาห์ 12)
+บัญชี seed สำหรับ demo ใช้รหัสผ่าน `rmutl1234` และอีเมล `@live.rmutl.ac.th` ใช้เฉพาะ development เท่านั้น ตัวอย่าง login: `tan.khanit@live.rmutl.ac.th`. ผู้ดูแลสร้างบัญชีได้ด้วย:
 
 ```bash
-npm install --prefix api && npm install --prefix frontend
-npm test                 # api (Vitest) + frontend (Vitest)
-npm run coverage         # รายงานว่าบรรทัดไหนยังไม่มี test วิ่งผ่าน → api/coverage/index.html
+npm run create-user --prefix api -- <อีเมล@live.rmutl.ac.th> <รหัสผ่าน> [ชื่อ] [user|admin]
 ```
 
-| โฟลเดอร์ | ชนิด test | ทดสอบอะไร |
-|---|---|---|
-| `api/tests/unit/` | unit | pure function เช่น `validators/shuttleValidator.js` — ไม่ต้องเปิด server |
-| `api/tests/integration/` | integration | ยิง HTTP จริงผ่านทุกชั้น ด้วย supertest บนฐานข้อมูลในหน่วยความจำ (`DB_FILE=:memory:`) |
-| `frontend/src/**/*.test.js` | unit | pure function ฝั่ง React เช่น `utils/requestSummary.js` |
+ไม่มี API สมัครสมาชิกสำหรับผู้ใช้ทั่วไป
 
-หลักฐานการไล่ปัญหา: `BUG_REPORTS.md` (อาการที่ผู้ใช้แจ้ง) · `DEBUG_LOG.md` (สาเหตุและวิธีแก้) · `TEST_CASES.md` (ตารางกรณีทดสอบ)
+## ตรวจสอบและ build
 
-
-## ความปลอดภัย (สัปดาห์ 13)
-
-| เรื่อง | ไฟล์ |
-|---|---|
-| validation login และตัวกรองตารางรถ · body ≤ 10kb | `api/src/validators/shuttleValidator.js` · `api/src/app.js` |
-| รหัสผ่านเก็บเป็น hash (scrypt) | `api/src/utils/password.js` |
-| เข้าสู่ระบบด้วย JWT | `api/src/services/authService.js` · `POST /api/auth/login` |
-| สิทธิ์: สร้างและดูการจองต้องใช้ JWT | `api/src/middleware/auth.js` · `api/src/routes/bookingRoutes.js` |
-| secret มาจาก env · production ไม่มี secret = ไม่ start | `api/src/config.js` · `api/.env.example` |
-
-บัญชีทดสอบใน schema ใช้รหัสผ่าน `rmutl1234` สำหรับ development เท่านั้น บัญชีต้องลงท้ายด้วย `@live.rmutl.ac.th`; แอปนี้เป็นระบบ login-only และไม่มีหน้าสมัครสมาชิกหรือ public self-signup
-ก่อนใช้งานจริง ให้ตั้ง `JWT_SECRET` และให้ผู้ดูแลสร้างบัญชีด้วย `npm run create-user --prefix api -- <อีเมล@live.rmutl.ac.th> <รหัสผ่าน> [ชื่อ] [user|admin]`.
+จาก `source/`:
 
 ```bash
-curl -X POST localhost:3001/api/auth/login -H "Content-Type: application/json" \
-  -d '{"email":"tan.khanit@live.rmutl.ac.th","password":"rmutl1234"}'
-# → { "token": "eyJ...", "user": { ... } }
-
-curl 'localhost:3001/api/schedules?originId=1&destinationId=2'
+npm test       # backend และ frontend
+npm run check  # project/API/frontend structural checks
+npm run build  # production Vite build และ API dependency install ตาม root script
 ```
+
+ฐานทดสอบ backend ใช้ Vitest และ integration tests; frontend ใช้ Vitest. รายงาน audit พร้อมผลล่าสุดอยู่ที่ `../FINAL_AUDIT_REPORT.md`; ภาพรวม handoff อยู่ที่ `../AGENT_HANDOFF.md`.
+
+## API หลัก
+
+- `POST /api/auth/login`
+- `GET /api/campuses`
+- `GET /api/schedules?originId=&destinationId=&date=`
+- `GET /api/schedules/:id`
+- `POST /api/bookings` (JWT)
+- `GET /api/bookings/my` (JWT)
+- `DELETE /api/bookings/:id` (JWT เจ้าของรายการ)
+- `GET /api/health`
+
+รายละเอียดเพิ่มเติมดู `API_CONTRACT.md`. การจองและเลื่อน FIFO ใช้ transaction ใน SQLite.
+
+## Production limitation
+
+การ build และ local tests ผ่าน แต่ยังไม่มี production deployment หรือ persistent production database ที่ยืนยันแล้ว SQLite บน free ephemeral storage ไม่เหมาะกับข้อมูล booking ระยะยาว และยังไม่ได้ทดสอบ transaction concurrency บน remote database.

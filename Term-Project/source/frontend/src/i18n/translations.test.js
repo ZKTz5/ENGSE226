@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { apiErrorKey, displayCampusName, formatDeparture, translate } from './translations.js';
-import { getInitialLanguage } from '../contexts/LanguageContext.jsx';
+import { getInitialLanguage, nextLanguage } from '../contexts/LanguageContext.jsx';
 
 describe('translation helpers', () => {
   test('uses Thai as the first-visit default and safely reads a saved language', () => {
@@ -8,6 +8,11 @@ describe('translation helpers', () => {
     expect(getInitialLanguage({ getItem: () => 'en' })).toBe('en');
     expect(getInitialLanguage({ getItem: () => 'xx' })).toBe('th');
     expect(getInitialLanguage({ getItem: () => { throw new Error('storage unavailable'); } })).toBe('th');
+  });
+
+  test('switcher toggles both supported languages without a page reload', () => {
+    expect(nextLanguage('th')).toBe('en');
+    expect(nextLanguage('en')).toBe('th');
   });
 
   test('falls back to English and then to the key for missing translations', () => {
