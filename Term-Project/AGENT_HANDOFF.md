@@ -361,6 +361,19 @@ Jed Yod and Doi Saket only. Deployment checks and evidence remain.
 - Verification: backend 49/49, frontend 16/16, frontend production build passed;
   API checks 4/4 and frontend checks 5/5 passed.
 
+### Warm brown visual refresh
+
+- Replaced the prior green/blue theme with shared CSS variables for espresso and
+  brown navigation/actions, muted gold highlights, cream backgrounds, warm-white
+  cards, brick-red error/cancel/expired states, and muted-green confirmed/available
+  states. Active pages retain the existing layout/component structure.
+- Kept the header wordmark as plain `RMUTL Shuttle` text and replaced the
+  dashboard letterform mark with a generic bus/route motif; no university logo
+  or custom brand mark is used.
+- Added consistent responsive styling and visible keyboard focus treatment.
+- Verification: frontend tests 16/16 and Vite production build passed; the
+  visual CSS change does not touch booking logic.
+
 ## Sprint 1–4 Gap Analysis (2026-10-06)
 
 | Sprint | Already implemented | Remaining at start of this phase |

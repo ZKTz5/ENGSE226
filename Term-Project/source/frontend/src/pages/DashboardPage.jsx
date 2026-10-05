@@ -47,7 +47,7 @@ function DashboardPage() {
           <p>{t('dashboard.intro')}</p>
           <Link className="button light-button" to="/schedules">{t('dashboard.search')} <span aria-hidden="true">→</span></Link>
         </div>
-        <div className="hero-mark" aria-hidden="true"><span>R</span><i>↗</i></div>
+        <div className="hero-transit" aria-hidden="true"><span>🚌</span><i /><b>JY ↔ DS</b></div>
       </section>
 
       <section className="dashboard-welcome" aria-label={t('dashboard.overview')}>
