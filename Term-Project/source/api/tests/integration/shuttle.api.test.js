@@ -27,10 +27,13 @@ describe('RMUTL shuttle API', () => {
 
   test('lists campuses and filters schedules by route and travel date', async () => {
     const campuses = await request(app).get('/api/campuses').expect(200);
-    expect(campuses.body.map((campus) => campus.name)).toEqual(['Doi Saket', 'Jed Yod', 'Chiang Mai']);
+    expect(campuses.body.map((campus) => campus.name)).toEqual(['Jed Yod', 'Doi Saket']);
 
     const all = await request(app).get('/api/schedules').expect(200);
     expect(all.body.length).toBeGreaterThan(0);
+    expect(all.body.every(({ origin_id, destination_id }) =>
+      [1, 2].includes(origin_id) && [1, 2].includes(destination_id) && origin_id !== destination_id,
+    )).toBe(true);
     expect(all.body[0]).toHaveProperty('availableSeats');
     const schedule = all.body.find((item) => item.origin_id === 1 && item.destination_id === 2);
     const date = schedule.departure_time.slice(0, 10);

@@ -9,7 +9,8 @@ const { loadSeed } = await import('../src/services/shuttleDb.js');
 await loadSeed();
 const app = createApp();
 const checks = [
-  ['campuses', () => request(app).get('/api/campuses').expect(200).then(({ body }) => body.length === 3)],
+  ['campuses', () => request(app).get('/api/campuses').expect(200).then(({ body }) =>
+    body.length === 2 && body.map(({ name }) => name).join('|') === 'Jed Yod|Doi Saket')],
   ['schedules', () => request(app).get('/api/schedules').expect(200).then(({ body }) => body.length > 0)],
   ['filter validation', () => request(app).get('/api/schedules?originId=invalid').expect(400).then(({ body }) => body.details.length > 0)],
   ['health', () => request(app).get('/api/health').expect(200).then(({ body }) => body.database.connected)],

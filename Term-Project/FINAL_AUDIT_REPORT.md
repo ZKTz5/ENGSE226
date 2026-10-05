@@ -16,7 +16,7 @@ All stated Sprint 1–4 functional requirements are implemented in the current l
 | JWT issued and used; protected endpoints | ✅ | Bearer JWT middleware protects booking routes; frontend stores token in memory and attaches it to API requests. |
 | Password hashing | ✅ | Existing `node:crypto` scrypt utility reused. |
 | Shuttle DB schema, seed data, schema compatibility guard | ✅ | Schema and seed data in `api/data/schema.sql`; legacy-schema guard avoids silent use of an old DB. |
-| Sprint 2: Doi Saket, Jed Yod, Chiang Mai | ✅ | Seeded campuses and `GET /api/campuses`. |
+| Sprint 2: Jed Yod and Doi Saket only | ✅ | Seeded campuses and `GET /api/campuses`; all seeded schedules use one of the two allowed directions. |
 | Select origin, destination, travel date; reject same campus | ✅ | Search UI and API filter validation. |
 | Schedule route, date, departure, capacity, confirmed count, available seats, status | ✅ | Schedule list/detail responses decorate DB rows with live booking counts and derived status. |
 | Filter schedules by origin, destination, and date | ✅ | Optional query filters validated and applied by schedule service. |
@@ -50,7 +50,7 @@ All stated Sprint 1–4 functional requirements are implemented in the current l
 ## Database schema summary
 
 - **`users`**: name, unique email, user/admin role, scrypt password hash, creation time.
-- **`campuses`**: unique campus names; seeded with Doi Saket, Jed Yod, and Chiang Mai.
+- **`campuses`**: unique campus names; seeded with exactly Jed Yod and Doi Saket. All seed schedule endpoints use only the two permitted opposite directions.
 - **`schedules`**: origin/destination foreign keys, ISO departure time, capacity, cached available seats, stored active/expired status, creation time. Runtime schedule status is derived using departure time and live booking counts.
 - **`bookings`**: user/schedule foreign keys, confirmed/waitlisted/cancelled state, diagnostic `waitlist_seq`, creation time.
 - **Indexes/constraints**: schedule search index; FIFO `(schedule_id, created_at, id)` index; user booking index; partial unique index preventing more than one non-cancelled booking per user and schedule.

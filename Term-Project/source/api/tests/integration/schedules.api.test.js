@@ -10,10 +10,13 @@ beforeEach(async () => loadSeed());
 describe('campus and schedule API', () => {
   test('returns campuses and schedule details with available-seat counts', async () => {
     const campuses = await request(app).get('/api/campuses').expect(200);
-    expect(campuses.body.map(({ name }) => name)).toEqual(['Doi Saket', 'Jed Yod', 'Chiang Mai']);
+    expect(campuses.body.map(({ name }) => name)).toEqual(['Jed Yod', 'Doi Saket']);
 
     const schedules = await request(app).get('/api/schedules').expect(200);
     expect(schedules.body.length).toBeGreaterThan(0);
+    expect(schedules.body.every(({ origin_id, destination_id }) =>
+      [1, 2].includes(origin_id) && [1, 2].includes(destination_id) && origin_id !== destination_id,
+    )).toBe(true);
     expect(schedules.body[0]).toMatchObject({ capacity: 10, availableSeats: 10, confirmedCount: 0 });
     const detail = await request(app).get(`/api/schedules/${schedules.body[0].id}`).expect(200);
     expect(detail.body.id).toBe(schedules.body[0].id);

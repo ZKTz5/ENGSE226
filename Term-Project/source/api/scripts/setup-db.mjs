@@ -13,7 +13,7 @@
  *   DB_FILE=./data/test.db npm run db:setup    สร้างที่อื่น
  */
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, unlinkSync, mkdirSync, copyFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,8 +44,12 @@ if (existsSync(DB_FILE)) {
     console.log('');
     process.exit(0);
   }
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupFile = `${DB_FILE}.backup-${timestamp}`;
+  copyFileSync(DB_FILE, backupFile);
+  console.log('  • สำรองฐานข้อมูลเดิมไว้ที่', backupFile);
   unlinkSync(DB_FILE);
-  console.log('  • ลบฐานข้อมูลเดิมแล้ว (--force)');
+  console.log('  • สร้างฐานข้อมูลใหม่ตามคำสั่ง --force');
 }
 
 mkdirSync(path.dirname(DB_FILE), { recursive: true });

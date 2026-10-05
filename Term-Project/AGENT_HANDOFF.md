@@ -71,11 +71,10 @@ final domain must use Shuttle-specific concepts and naming.
 
 ### Campus and Route Data
 
-Supported campuses:
+Supported service locations (exactly two):
 
-- Doi Saket
 - Jed Yod
-- Chiang Mai
+- Doi Saket
 
 Users must be able to select:
 
@@ -237,7 +236,7 @@ CREATE TABLE users (
 
 CREATE TABLE campuses (
   id    INTEGER PRIMARY KEY AUTOINCREMENT,
-  name  TEXT NOT NULL UNIQUE -- Doi Saket, Jed Yod, Chiang Mai
+  name  TEXT NOT NULL UNIQUE -- Jed Yod, Doi Saket
 );
 
 CREATE TABLE schedules (
@@ -322,15 +321,30 @@ Note on authentication:
 ## Current Status (2026-10-06)
 
 The shuttle migration from commit `5209174` was reviewed and preserved. Backend
-work and shuttle frontend flows are implemented. Deployment checks and evidence
-remain.
+work and shuttle frontend flows are implemented. The service-location domain is
+Jed Yod and Doi Saket only. Deployment checks and evidence remain.
+
+### Approved campus domain update
+
+- The database seed contains exactly Jed Yod and Doi Saket, in that order.
+- Seed schedules use only Jed Yod → Doi Saket and Doi Saket → Jed Yod.
+- To prepare an isolated fresh development database, run
+  `DB_FILE=/tmp/rmutl-shuttle-dev.db npm run db:reset --prefix api` from
+  `source/`. This explicitly resets only the named disposable file.
+- To reset the default developer database, stop the API and use
+  `npm run db:reset --prefix api`. The reset script first writes a timestamped
+  `.backup-*` copy next to an existing database before replacing it. Review and
+  preserve that backup; do not reset a production or user database.
+- Verified an isolated reset on 2026-10-06: campuses were exactly
+  `Jed Yod`, `Doi Saket`; 8 schedules were seeded and 0 had invalid/equal
+  endpoints. Existing `source/api/data/campus.db` was not modified.
 
 ## Sprint 1–4 Gap Analysis (2026-10-06)
 
 | Sprint | Already implemented | Remaining at start of this phase |
 |---|---|---|
 | 1 — Database and authentication | Shuttle schema/seed, `@rmutl.ac.th` login, JWT, password hashing, protected booking routes, missing/domain/credential tests, incompatible-schema startup guard, production JWT secret requirement | Before starting against the local legacy DB, an operator must back it up and explicitly reset or migrate it; automatic destructive migration is intentionally not performed. |
-| 2 — Campuses and schedules | Three campus records, route/date filters, same-campus validation, API counts, runtime expiry and booking rejection, frontend search/list/detail | No functional gap identified; filter and expiry tests already run. |
+| 2 — Campuses and schedules | Two approved location records, route/date filters, same-campus validation, API counts, runtime expiry and booking rejection, frontend search/list/detail | No functional gap identified; filter and expiry tests already run. |
 | 3 — Booking and waitlist | Atomic local SQLite booking/cancellation, duplicate prevention, waitlisting, ownership checks, FIFO by `(created_at, id)`, promotion | Functional requirements and local concurrency cases are covered. A remote driver is not configured; its concurrency behavior is not verified and cannot be claimed. |
 | 4 — Frontend and handover | Login, dashboard, schedule search/list/detail, My Bookings, booking/cancellation actions, booking/waitlist outcome, API connection, responsive styling, loading/empty/error states, corrected Render service/root and secret prompt, shuttle root checks | Configured SQLite storage is ephemeral; use supported persistent storage before relying on deployed bookings, then perform build/deployment evidence checks. |
 

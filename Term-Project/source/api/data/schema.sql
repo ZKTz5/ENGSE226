@@ -10,7 +10,7 @@ DROP TABLE IF EXISTS schedules;
 DROP TABLE IF EXISTS campuses;
 DROP TABLE IF EXISTS users;
 
--- users — login by @rmutl.ac.th email
+-- users — login by @live.rmutl.ac.th email
 CREATE TABLE users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   name          TEXT NOT NULL,
@@ -68,9 +68,8 @@ CREATE UNIQUE INDEX idx_bookings_active_user_schedule
 -- Seed data (reset on every schema run → consistent test state)
 -- ═══════════════════════════════════════════════════════════
 INSERT INTO campuses (name) VALUES
-  ('Doi Saket'),
   ('Jed Yod'),
-  ('Chiang Mai');
+  ('Doi Saket');
 
 -- Test users (password: 'rmutl1234' for every account; hashes built with utils/password.js)
 INSERT INTO users (name, email, role, password_hash) VALUES
@@ -88,10 +87,10 @@ INSERT INTO users (name, email, role, password_hash) VALUES
 -- 8 schedules: 3 expired (past) + 5 active. Seed available_seats = capacity (no bookings yet).
 INSERT INTO schedules (origin_id, destination_id, departure_time, capacity, available_seats, status) VALUES
   (1, 2, datetime('now','localtime','+00:00','-3 days'),  10, 10, 'expired'),
-  (1, 3, datetime('now','localtime','+00:00','-3 days'),  10, 10, 'expired'),
-  (2, 3, datetime('now','localtime','+00:00','-1 day'),   10, 10, 'expired'),
+  (2, 1, datetime('now','localtime','+00:00','-3 days'),  10, 10, 'expired'),
+  (1, 2, datetime('now','localtime','+00:00','-1 day'),   10, 10, 'expired'),
   (1, 2, datetime('now','localtime','+00:00','+1 day'),   10, 10, 'active'),
-  (1, 3, datetime('now','localtime','+00:00','+1 day'),   10, 10, 'active'),
+  (1, 2, datetime('now','localtime','+00:00','+1 day','+6 hours'), 10, 10, 'active'),
   (2, 1, datetime('now','localtime','+00:00','+1 day'),   10, 10, 'active'),
-  (3, 2, datetime('now','localtime','+00:00','+2 days'),  10, 10, 'active'),
-  (3, 1, datetime('now','localtime','+00:00','+2 days'),  10, 10, 'active');
+  (2, 1, datetime('now','localtime','+00:00','+2 days'),  10, 10, 'active'),
+  (1, 2, datetime('now','localtime','+00:00','+2 days'),  10, 10, 'active');

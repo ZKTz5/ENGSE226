@@ -1,7 +1,7 @@
 # RMUTL Shuttle Booking frontend
 
-React and Vite single-page app for exploring shuttle schedules between Doi Saket,
-Jed Yod, and Chiang Mai. The app uses the Express API for login, campus options,
+React and Vite single-page app for exploring shuttle schedules between Jed Yod
+and Doi Saket in both directions. The app uses the Express API for login, campus options,
 schedule searches, and schedule details.
 
 ## Run locally
