@@ -43,13 +43,25 @@ async function openDatabase() {
 export async function loadSeed() {
   db = await openDatabase();
   db.exec('PRAGMA foreign_keys = ON');
-  // run schema.sql only when the users table is missing (fresh DB).
-  const ready = db.prepare(
-    "SELECT COUNT(*) c FROM sqlite_master WHERE type='table' AND name='users'"
-  ).get().c;
-  if (!ready && existsSync(SCHEMA_FILE)) {
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name);
+  if (!tables.includes('users') && existsSync(SCHEMA_FILE)) {
     db.exec(readFileSync(SCHEMA_FILE, 'utf8'));
   }
+  assertShuttleSchema(db);
+}
+
+const REQUIRED_TABLES = ['users', 'campuses', 'schedules', 'bookings'];
+
+export function assertShuttleSchema(database) {
+  const tables = new Set(database.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name));
+  const missing = REQUIRED_TABLES.filter((table) => !tables.has(table));
+  if (missing.length) {
+    throw new Error(
+      `Incompatible database schema; missing Shuttle tables: ${missing.join(', ')}. ` +
+      'Back up the existing database, then run `npm run db:reset --prefix api` to create the Shuttle schema.',
+    );
+  }
+  return true;
 }
 
 export function getDb() {

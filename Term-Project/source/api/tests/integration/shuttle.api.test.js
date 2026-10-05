@@ -66,11 +66,71 @@ describe('RMUTL shuttle API', () => {
     expect(waitingOne.body.status).toBe('waitlisted');
     expect(waitingTwo.body.status).toBe('waitlisted');
 
+    // Force an equal timestamp and deliberately reverse waitlist_seq. The spec
+    // requires created_at then id to decide FIFO order.
+    getDb().prepare("UPDATE bookings SET created_at = '2026-10-01 12:00:00' WHERE id IN (?, ?)")
+      .run(waitingOne.body.id, waitingTwo.body.id);
+    getDb().prepare('UPDATE bookings SET waitlist_seq = 99 WHERE id = ?').run(waitingOne.body.id);
+    getDb().prepare('UPDATE bookings SET waitlist_seq = 1 WHERE id = ?').run(waitingTwo.body.id);
+
     const cancelled = await request(app).delete(`/api/bookings/${confirmed.body.id}`)
       .set('Authorization', `Bearer ${firstToken}`).expect(200);
     expect(cancelled.body.promotedId).toBe(waitingOne.body.id);
     const mine = await request(app).get('/api/bookings/my')
       .set('Authorization', `Bearer ${secondToken}`).expect(200);
     expect(mine.body[0].status).toBe('confirmed');
+  });
+
+  test('rejects cancellation by another user and does not promote for a waitlisted cancellation', async () => {
+    getDb().prepare('UPDATE schedules SET capacity = 1, available_seats = 1 WHERE id = 4').run();
+    const emails = [
+      'tan.khanit@rmutl.ac.th',
+      'patchara.w@rmutl.ac.th',
+      'anon.p@rmutl.ac.th',
+      'wanchalern.p@rmutl.ac.th',
+    ];
+    const tokens = await Promise.all(emails.map(login));
+    const create = (token) => request(app).post('/api/bookings')
+      .set('Authorization', `Bearer ${token}`).send({ scheduleId: 4 });
+    const confirmed = await create(tokens[0]).expect(201);
+    const waiting = await create(tokens[1]).expect(201);
+    const nextWaiting = await create(tokens[2]).expect(201);
+
+    await create(tokens[1]).expect(409); // duplicate active waitlist entry
+    await request(app).delete(`/api/bookings/${confirmed.body.id}`)
+      .set('Authorization', `Bearer ${tokens[3]}`).expect(403);
+
+    const waitlistCancellation = await request(app).delete(`/api/bookings/${waiting.body.id}`)
+      .set('Authorization', `Bearer ${tokens[1]}`).expect(200);
+    expect(waitlistCancellation.body.promotedId).toBeNull();
+
+    const ownerCancellation = await request(app).delete(`/api/bookings/${confirmed.body.id}`)
+      .set('Authorization', `Bearer ${tokens[0]}`).expect(200);
+    expect(ownerCancellation.body.promotedId).toBe(nextWaiting.body.id);
+  });
+
+  test('concurrent distinct users cannot overbook the last seat', async () => {
+    getDb().prepare('UPDATE schedules SET capacity = 1, available_seats = 1 WHERE id = 4').run();
+    const emails = [
+      'tan.khanit@rmutl.ac.th',
+      'patchara.w@rmutl.ac.th',
+      'anon.p@rmutl.ac.th',
+      'wanchalern.p@rmutl.ac.th',
+      'wichapong.r@rmutl.ac.th',
+      'nill.rattan@rmutl.ac.th',
+    ];
+    const tokens = await Promise.all(emails.map(login));
+    const responses = await Promise.all(tokens.map((token) => request(app).post('/api/bookings')
+      .set('Authorization', `Bearer ${token}`).send({ scheduleId: 4 })));
+
+    expect(responses.every((response) => response.status === 201)).toBe(true);
+    expect(responses.filter((response) => response.body.status === 'confirmed')).toHaveLength(1);
+    expect(responses.filter((response) => response.body.status === 'waitlisted')).toHaveLength(5);
+    const counts = getDb().prepare(`SELECT
+      SUM(status = 'confirmed') AS confirmed,
+      SUM(status = 'waitlisted') AS waitlisted
+      FROM bookings WHERE schedule_id = 4`).get();
+    expect(counts).toEqual({ confirmed: 1, waitlisted: 5 });
+    expect(getDb().prepare('SELECT available_seats FROM schedules WHERE id = 4').get().available_seats).toBe(0);
   });
 });

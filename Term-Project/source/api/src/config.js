@@ -12,6 +12,14 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const API_ROOT = path.resolve(HERE, '..');
 
+export function resolveJwtSecret(env = process.env) {
+  const secret = env.JWT_SECRET?.trim();
+  if (env.NODE_ENV === 'production' && !secret) {
+    throw new Error('JWT_SECRET must be set to a strong secret in production.');
+  }
+  return secret || 'dev-only-secret-do-not-use-in-production';
+}
+
 export const config = {
   // สภาพแวดล้อม — 'development' หรือ 'production'
   env: process.env.NODE_ENV ?? 'development',
@@ -30,13 +38,6 @@ export const config = {
   // production เสิร์ฟไฟล์ frontend ที่ build แล้วจากที่ไหน
   staticDir: process.env.STATIC_DIR ?? path.join(API_ROOT, '..', 'frontend', 'dist'),
 
-  /**
-   * 🏫 TODO W13-SECRET (CP52) — แบบนี้ยังอันตราย
-   *   ถ้าลืมตั้ง JWT_SECRET ตอน production ระบบจะใช้ค่าด้านล่างซึ่งอยู่ใน GitHub ให้ทุกคนเห็น
-   *   → ใครก็ปลอม token ของเจ้าหน้าที่ได้
-   *   แก้: production ที่ไม่มี JWT_SECRET ต้อง throw new Error(...) ทันที (fail fast)
-   *        dev/test ยังใช้ค่าสำหรับพัฒนาได้
-   */
-  jwtSecret: process.env.JWT_SECRET || 'dev-only-secret-do-not-use-in-production',
+  jwtSecret: resolveJwtSecret(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '2h',
 };

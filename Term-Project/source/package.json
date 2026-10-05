@@ -1,5 +1,5 @@
 {
-  "name": "campus-service",
+  "name": "rmutl-shuttle-system",
   "private": true,
   "description": "ENGSE203 Week 13 — starter (เพิ่มความปลอดภัยและการเข้าสู่ระบบ)",
   "engines": {
@@ -10,7 +10,7 @@
     "start": "npm start --prefix api",
     "test": "npm test --prefix api && npm test --prefix frontend",
     "coverage": "npm run coverage --prefix api",
-    "check": "node --disable-warning=ExperimentalWarning check-week13.mjs"
+    "check": "npm run check --prefix api && npm run check --prefix frontend"
   },
   "devDependencies": {
     "supertest": "^7.2.2"

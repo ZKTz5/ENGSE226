@@ -1,22 +1,27 @@
 import { Route, Routes } from 'react-router-dom';
-import AboutPage from './pages/AboutPage.jsx';
 import AppLayout from './pages/AppLayout.jsx';
+import LoginPage from './pages/LoginPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
-import NewRequestPage from './pages/NewRequestPage.jsx';
 import NotFoundPage from './pages/NotFoundPage.jsx';
-import RequestDetailPage from './pages/RequestDetailPage.jsx';
+import ScheduleDetailPage from './pages/ScheduleDetailPage.jsx';
+import SchedulesPage from './pages/SchedulesPage.jsx';
+import MyBookingsPage from './pages/MyBookingsPage.jsx';
+import { AuthProvider } from './contexts/AuthContext.jsx';
 
 function App() {
   return (
-    <Routes>
-      <Route element={<AppLayout />}>
-        <Route index element={<DashboardPage />} />
-        <Route path="requests/new" element={<NewRequestPage />} />
-        <Route path="requests/:requestId" element={<RequestDetailPage />} />
-        <Route path="about" element={<AboutPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+    <AuthProvider>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="schedules" element={<SchedulesPage />} />
+          <Route path="schedules/:scheduleId" element={<ScheduleDetailPage />} />
+          <Route path="bookings" element={<MyBookingsPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Routes>
+    </AuthProvider>
   );
 }
 

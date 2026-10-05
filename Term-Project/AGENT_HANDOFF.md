@@ -210,12 +210,11 @@ executed successfully.
 - `source/frontend/src/services/apiClient.js` (Fetch wrapper with base URL)
 - `source/frontend/src/components/LoadingState.jsx` / `ErrorState.jsx`
 
-## Remaining Frontend Files
+## Remaining Handover Work
 
-- `source/frontend/src/App.jsx` (Add shuttle routes)
-- `source/frontend/src/services/requestService.js` (Replace with shuttle API client)
-- `source/frontend/src/pages/` (Add schedules, schedule detail, and My Bookings pages)
-- `source/frontend/src/components/` (Replace request-specific UI with shuttle UI)
+- Select persistent production database/storage; the configured Render free plan uses ephemeral local SQLite.
+- Back up and explicitly migrate/reset any developer database that still has the Campus Service schema.
+- Prepare deployment evidence after persistent storage and environment secrets are configured.
 
 ## Proposed Database Schema
 
@@ -265,14 +264,14 @@ CREATE TABLE bookings (
 );
 
 CREATE INDEX idx_schedules_search ON schedules(origin_id, destination_id, departure_time);
-CREATE INDEX idx_bookings_fifo ON bookings(schedule_id, waitlist_seq, id);
+CREATE INDEX idx_bookings_fifo ON bookings(schedule_id, created_at, id);
 CREATE UNIQUE INDEX idx_bookings_active_user_schedule
   ON bookings(user_id, schedule_id) WHERE status != 'cancelled';
 ```
 
 ## Proposed API Contract
 
-- `POST /api/auth/login`: `{ email, password }` (endpoint already exists; add `@rmutl.ac.th` domain check)
+- `POST /api/auth/login`: `{ email, password }`; validates the `@rmutl.ac.th` domain and returns a JWT.
 - `GET /api/schedules`: Query params: `originId`, `destinationId`, `date`
 - `GET /api/campuses`: list of supported campuses
 
@@ -280,11 +279,8 @@ Note on authentication:
 
 - `POST /api/auth/register` is NOT required by the RMUTL Shuttle spec and is NOT
   in the existing API. The spec only requires institutional-email login.
-- The existing `login` restricts access to `role === 'staff'`. To support any
-  RMUTL user, `authService.js` and the role check must be changed so the
-  `user` role (not just staff) can authenticate and book.
 - If registration is NOT implemented, `users` must be seeded directly via
-  `schema.sql` or `create-staff`-style scripts so a real login is possible in
+  `schema.sql` or the `create-user` script so a real login is possible in
   the primary flow (do not rely on mock data for the primary flow).
 - `GET /api/schedules/:id`: Detail with current booking status
 - `POST /api/bookings`: `{ scheduleId }` (Authenticated)
@@ -294,10 +290,9 @@ Note on authentication:
 ## Implementation Risks
 
 - **Concurrency**: SQLite handles multiple writes via file locking, but `BEGIN IMMEDIATE` transactions are required to ensure `available_seats` doesn't drop below zero under load.
-- **FIFO and remote transactions**: Local SQLite assigns `waitlist_seq` inside
-  the booking transaction and promotes by `(waitlist_seq, id)`. The Turso branch
-  still needs driver and concurrency verification before making the same claim
-  for a deployed remote database.
+- **FIFO and remote transactions**: Local SQLite promotes waitlisted rows by
+  `(created_at, id)`. The Turso branch still needs driver and concurrency
+  verification before making the same claim for a deployed remote database.
 - **Timezone Drift**: Standardizing on ISO8601 strings and server-side `datetime('now')` is critical.
 - **Waitlist Loop**: Cancellation of a waitlisted entry should NOT trigger a promotion, only cancellation of a confirmed entry.
 
@@ -326,9 +321,23 @@ Note on authentication:
 
 ## Current Status (2026-10-06)
 
-The shuttle migration from commit `5209174` was reviewed and preserved. The
-backend scope requested in this phase is implemented; the frontend remains the
-Campus Service UI and is outside this backend phase.
+The shuttle migration from commit `5209174` was reviewed and preserved. Backend
+work and shuttle frontend flows are implemented. Deployment checks and evidence
+remain.
+
+## Sprint 1–4 Gap Analysis (2026-10-06)
+
+| Sprint | Already implemented | Remaining at start of this phase |
+|---|---|---|
+| 1 — Database and authentication | Shuttle schema/seed, `@rmutl.ac.th` login, JWT, password hashing, protected booking routes, missing/domain/credential tests, incompatible-schema startup guard, production JWT secret requirement | Before starting against the local legacy DB, an operator must back it up and explicitly reset or migrate it; automatic destructive migration is intentionally not performed. |
+| 2 — Campuses and schedules | Three campus records, route/date filters, same-campus validation, API counts, runtime expiry and booking rejection, frontend search/list/detail | No functional gap identified; filter and expiry tests already run. |
+| 3 — Booking and waitlist | Atomic local SQLite booking/cancellation, duplicate prevention, waitlisting, ownership checks, FIFO by `(created_at, id)`, promotion | Functional requirements and local concurrency cases are covered. A remote driver is not configured; its concurrency behavior is not verified and cannot be claimed. |
+| 4 — Frontend and handover | Login, dashboard, schedule search/list/detail, My Bookings, booking/cancellation actions, booking/waitlist outcome, API connection, responsive styling, loading/empty/error states, corrected Render service/root and secret prompt, shuttle root checks | Configured SQLite storage is ephemeral; use supported persistent storage before relying on deployed bookings, then perform build/deployment evidence checks. |
+
+Remaining operational tasks: back up and migrate/reset any local old-schema DB;
+select persistent production database/storage; deploy with the required `JWT_SECRET`;
+verify concurrency on the selected remote driver if applicable; prepare deployment
+evidence.
 
 ### Backend implementation
 
@@ -353,23 +362,29 @@ Campus Service UI and is outside this backend phase.
 
 ### Verification
 
-- Backend suite: **PASS**, `npm test --prefix api` — 37 tests in 5 files.
+- Backend suite: **PASS**, `npm test --prefix api` — 44 tests in 7 files.
 - Backend smoke check: **PASS**, `npm run check --prefix api` — 4/4 checks.
+- Root check: **PASS**, `npm run check` — API 4/4 and frontend 4/4.
+- Root test suite: **PASS**, `npm test` — backend 44/44 and frontend 7/7.
+- Root production build: **PASS**, `npm run build` — frontend bundle generated and API dependencies installed.
 - `git diff --check`: passed.
-- Frontend build: not run in this backend phase; previous environment attempt
-  failed while initializing Qt's `xcb` plugin and remains unverified.
+- Frontend suite: **PASS**, `npm test --prefix frontend` — 7 tests in 2 files.
+- Frontend production build: **PASS**, `npm run build --prefix frontend`.
 
 ### Remaining project work
 
-- Frontend login and shuttle pages, API integration, responsive layouts, and
-  loading/empty/error/success/expired/full states remain pending.
-- Add concurrent booking coverage and verify transaction behavior on any
-  deployed Turso driver; current test coverage uses local in-memory SQLite.
-- The existing ignored `data/campus.db` can still contain the original Campus
-  Service schema. `db:setup` intentionally does not overwrite an existing DB;
-  migrate or explicitly reset that database before using the shuttle server.
-- Review deployment configuration and prepare deployment evidence after the
-  frontend conversion.
+- Frontend login, dashboard, schedule search/list/detail, API integration,
+  responsive layout, and loading/empty/error states are implemented. The JWT is
+  kept in app memory and sent with API requests; a page reload signs the user out.
+- Verify transaction behavior if a remote DB driver is selected; local SQLite
+  concurrency cases pass, but no remote DB is configured or verified.
+- An existing `data/campus.db` can still contain the original Campus Service
+  schema. Startup now fails with a backup/reset instruction instead of failing
+  later on missing tables. After backing it up, explicitly run
+  `npm run db:reset --prefix api` before using that local DB.
+- Render SQLite storage is ephemeral on the configured free plan; deployment is
+  not ready for persistent booking data until a persistent database/storage target
+  is selected. No production deployment or persistent database has been verified.
 
 ### Changes in this phase
 
@@ -380,3 +395,31 @@ Campus Service UI and is outside this backend phase.
 - Backend auth/schedule tests migrated from request-domain tests to shuttle equivalents.
 - Removed the request-oriented checker and middleware; updated setup-db, account
   tooling, package scripts, and project documentation for the shuttle domain.
+- Booking FIFO promotion now orders by `created_at`, then `id`, matching the requirement.
+- Tests cover equal-timestamp FIFO tie-breaking, duplicate waitlist prevention,
+  cancellation ownership, no promotion on waitlist cancellation, and six concurrent
+  users competing for one seat; backend suite passes 44/44.
+- Added `assertShuttleSchema()` so a legacy DB is never mistaken for a valid Shuttle DB;
+  unit tests verify both incompatible and complete table sets.
+- Production config now refuses to start without `JWT_SECRET`; the Render blueprint
+  uses the actual repository root, shuttle service name, and prompts for the secret.
+- Added config tests for development fallback and production secret requirements.
+- Replaced the missing root checker and stale frontend Campus Service checker with
+  working Shuttle checks; root checks pass 8/8 total.
+
+### Frontend phase (2026-10-06)
+
+- Reused `AppLayout`, `LoadingState`, `ErrorState`, and the existing fetch client;
+  replaced the request dashboard and header with RMUTL shuttle navigation.
+- Added institutional login, a live dashboard, campus/date schedule search,
+  schedule cards and detail pages, plus a reusable empty state.
+- Added shuttle API services for login, campuses, filtered schedules, and details.
+  Successful login stores the JWT in app memory; `apiFetch` sends it as a bearer
+  token on subsequent API requests without browser storage.
+- Initial frontend milestone: tests **PASS**, 6/6; production build **PASS**.
+- Added My Bookings, confirmed/waitlisted/cancelled booking views, cancellation
+  actions, schedule booking/waitlist actions, and outcome notices. Booking APIs
+  refresh details after success and expose API errors to the user.
+- Extended service tests for reading bookings, booking, and cancellation.
+- Frontend tests: **PASS**, 7/7. Production build: **PASS**.
+- The inactive tracked Campus Service files remain outside the active route tree.

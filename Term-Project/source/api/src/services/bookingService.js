@@ -87,7 +87,7 @@ export function createBooking({ userId, scheduleId }) {
  * cancelBooking(bookingId, { userId, isAdmin })
  *  - Only the booking owner or an admin may cancel.
  *  - Cancelling a confirmed booking promotes the first waitlisted entry
- *    (FIFO by waitlist_seq, then id) — all inside one transaction.
+ *    (FIFO by created_at, then id) — all inside one transaction.
  *  - Cancelling a waitlisted entry just marks it cancelled; no promotion.
  */
 export function cancelBooking(bookingId, { userId, isAdmin = false } = {}) {
@@ -125,7 +125,7 @@ export function cancelBooking(bookingId, { userId, isAdmin = false } = {}) {
         .prepare(
           `SELECT id FROM bookings
            WHERE schedule_id = ? AND status = 'waitlisted'
-           ORDER BY waitlist_seq ASC, id ASC LIMIT 1`
+           ORDER BY created_at ASC, id ASC LIMIT 1`
         )
         .get(booking.schedule_id);
       if (next) {

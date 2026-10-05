@@ -1,18 +1,19 @@
 import { NavLink } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext.jsx';
 
 const links = [
   ['/', 'Dashboard'],
-  ['/requests/new', 'New Request'],
-  ['/about', 'About'],
+  ['/schedules', 'Find a shuttle'],
 ];
 
 function AppHeader() {
+  const { session, signOut } = useAuth();
   return (
     <header className="site-header">
       <div className="container header-inner">
         <div>
-          <p className="eyebrow">ENGSE203 • LAB 05</p>
-          <p className="brand">Campus Service Request</p>
+          <p className="eyebrow">RMUTL • CAMPUS TRANSIT</p>
+          <p className="brand">Shuttle Booking</p>
         </div>
         <nav aria-label="เมนูหลัก">
           {links.map(([to, label]) => (
@@ -25,6 +26,18 @@ function AppHeader() {
               {label}
             </NavLink>
           ))}
+          {session ? (
+            <>
+              <NavLink className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`} to="/bookings">My Bookings</NavLink>
+              <button className="nav-link nav-action" type="button" onClick={signOut}>
+                Sign out · {session.user.name}
+              </button>
+            </>
+          ) : (
+            <NavLink className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`} to="/login">
+              Login
+            </NavLink>
+          )}
         </nav>
       </div>
     </header>

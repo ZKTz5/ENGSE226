@@ -1,39 +1,26 @@
-# ENGSE203 LAB05 — Campus Service Request
+# RMUTL Shuttle Booking frontend
 
-Reference implementation สำหรับ Phase W5-D (Instructor Private)
+React and Vite single-page app for exploring shuttle schedules between Doi Saket,
+Jed Yod, and Chiang Mai. The app uses the Express API for login, campus options,
+schedule searches, and schedule details.
 
-## Run
+## Run locally
 
 ```bash
 npm ci
 npm run dev
-npm run check
+```
+
+The API defaults to `http://localhost:3001`. Set `VITE_API_BASE_URL` when the API
+runs at another URL. In production, the empty `VITE_API_BASE_URL` uses same-origin
+`/api` requests.
+
+## Verify
+
+```bash
+npm test
 npm run build
-npm run preview
 ```
 
-## Architecture
-
-```mermaid
-flowchart TD
-  URL[Hash URL] --> Routes[App Routes]
-  Routes --> Page[Page Component]
-  Page --> UI[Shared Components]
-  Page --> Service[requestService]
-  Service --> Seed[Seed JSON]
-  Service --> Storage[requestStorage]
-```
-
-- `App.jsx` กำหนด route matrix
-- `pages/` เป็นเจ้าของ route-specific state และ lifecycle
-- `components/` รับข้อมูลและ handler ผ่าน props
-- `requestService.js` เป็น data-access boundary ของ UI
-- `requestStorage.js` เป็นไฟล์เดียวที่ใช้ `localStorage`
-
-## Effect reasoning
-
-Dashboard Effect ขึ้นกับ `scenario` และ `reloadKey` เพราะทั้งสองค่าเปลี่ยนชุดข้อมูลที่ต้อง synchronize จาก Service ส่วน summary และ filtered list เป็น derived data ระหว่าง render จึงไม่อยู่ใน Effect มี `ignore` cleanup guard เพื่อป้องกันผล async เก่ามาเขียน state หลัง route/scenario เปลี่ยน
-
-## Privacy
-
-ใช้ข้อมูลสาธิตเท่านั้น ห้ามบันทึก token, password, secret หรือข้อมูลส่วนบุคคลจริงใน `localStorage` หรือหลักฐานภาพ
+The JWT stays in app memory and is sent as a bearer token. Reloading the page ends
+the current login session. Public schedule browsing does not require login.

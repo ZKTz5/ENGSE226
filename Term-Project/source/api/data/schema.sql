@@ -43,8 +43,8 @@ CREATE TABLE schedules (
 );
 
 -- bookings
--- waitlist_seq: monotonic sequence assigned inside the INSERT transaction
---               (MAX+1 per schedule). FIFO order by (waitlist_seq, id).
+-- waitlist_seq: retained insertion sequence for diagnostics; promotion follows
+--               the project contract (created_at, then id).
 CREATE TABLE bookings (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id      INTEGER NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE bookings (
 );
 
 CREATE INDEX idx_schedules_search ON schedules(origin_id, destination_id, departure_time);
-CREATE INDEX idx_bookings_fifo    ON bookings(schedule_id, waitlist_seq, id);
+CREATE INDEX idx_bookings_fifo    ON bookings(schedule_id, created_at, id);
 CREATE INDEX idx_bookings_user    ON bookings(user_id);
 -- Permit rebooking after cancellation while preventing duplicate active bookings.
 CREATE UNIQUE INDEX idx_bookings_active_user_schedule
