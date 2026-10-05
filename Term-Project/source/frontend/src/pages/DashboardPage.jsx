@@ -3,40 +3,28 @@ import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import LoadingState from '../components/LoadingState.jsx';
-import ScheduleCard from '../components/ScheduleCard.jsx';
+import VehicleRequestCard from '../components/VehicleRequestCard.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
 import { apiErrorKey } from '../i18n/translations.js';
-import { getSchedules } from '../services/shuttleService.js';
+import { getMyVehicleRequests } from '../services/vehicleRequestService.js';
 
 function DashboardPage() {
   const { session } = useAuth();
   const { t } = useLanguage();
-  const [schedules, setSchedules] = useState([]);
-  const [state, setState] = useState('loading');
+  const [requests, setRequests] = useState([]);
+  const [state, setState] = useState(session ? 'loading' : 'guest');
   const [errorKey, setErrorKey] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    if (!session) { setState('guest'); setRequests([]); return undefined; }
     let ignore = false;
     setState('loading');
-    setErrorKey('');
-    getSchedules().then((items) => {
-      if (!ignore) {
-        setSchedules(items);
-        setState('success');
-      }
-    }).catch((reason) => {
-      if (!ignore) {
-        setErrorKey(apiErrorKey(reason));
-        setState('error');
-      }
-    });
+    getMyVehicleRequests().then((rows) => { if (!ignore) { setRequests(rows); setState('success'); } })
+      .catch((error) => { if (!ignore) { setErrorKey(apiErrorKey(error)); setState('error'); } });
     return () => { ignore = true; };
-  }, [reloadKey]);
-
-  const upcoming = schedules.filter((item) => item.status !== 'expired').slice(0, 3);
-  const availableCount = schedules.filter((item) => item.status === 'active').length;
+  }, [session, reloadKey]);
 
   return (
     <div data-testid="page-dashboard">
@@ -45,35 +33,23 @@ function DashboardPage() {
           <p className="eyebrow">{t('dashboard.eyebrow')}</p>
           <h1>{t('dashboard.headline')}</h1>
           <p>{t('dashboard.intro')}</p>
-          <Link className="button light-button" to="/schedules">{t('dashboard.search')} <span aria-hidden="true">→</span></Link>
+          <Link className="button light-button" to={session ? '/requests/new' : '/login'}>{t(session ? 'common.newRequest' : 'nav.login')} <span aria-hidden="true">→</span></Link>
         </div>
         <div className="hero-transit" aria-hidden="true"><span>🚌</span><i /><b>JY ↔ DS</b></div>
       </section>
-
-      <section className="dashboard-welcome" aria-label={t('dashboard.overview')}>
-        <div>
-          <p className="eyebrow dark">{t('dashboard.overview')}</p>
-          <h2>{session ? t('dashboard.welcome', { name: session.user.name }) : t('dashboard.plan')}</h2>
-        </div>
-        <div className="availability-stat"><strong>{state === 'success' ? availableCount : '—'}</strong><span>{t('dashboard.availableRoutes')}</span></div>
+      <section className="dashboard-welcome">
+        <div><p className="eyebrow dark">{t('dashboard.overview')}</p><h2>{session ? t('dashboard.welcome', { name: session.user.name }) : t('dashboard.plan')}</h2></div>
+        {session && <Link className="button secondary inline" to="/requests">{t('common.myRequests')}</Link>}
       </section>
-
-      <section className="schedule-section" aria-labelledby="upcoming-title">
-        <div className="section-heading shuttle-section-heading">
-          <div><p className="eyebrow dark">{t('dashboard.database')}</p><h2 id="upcoming-title">{t('dashboard.upcoming')}</h2></div>
-          <Link className="text-link" to="/schedules">{t('dashboard.all')} <span aria-hidden="true">→</span></Link>
-        </div>
-        {state === 'loading' && <LoadingState message={t('common.loadingSchedules')} />}
-        {state === 'error' && <ErrorState message={t(errorKey)} onRetry={() => setReloadKey((key) => key + 1)} />}
-        {state === 'success' && upcoming.length === 0 && (
-          <EmptyState title={t('state.noUpcomingTitle')} message={t('state.noUpcomingText')} />
-        )}
-        {state === 'success' && upcoming.length > 0 && (
-          <div className="schedule-list">{upcoming.map((item) => <ScheduleCard key={item.id} schedule={item} />)}</div>
-        )}
-      </section>
+      {state === 'guest' && <EmptyState title={t('dashboard.guestTitle')} message={t('dashboard.guestText')} action={<Link className="button primary inline" to="/login">{t('nav.login')}</Link>} />}
+      {state === 'loading' && <LoadingState message={t('common.loadingRequests')} />}
+      {state === 'error' && <ErrorState message={t(errorKey)} onRetry={() => setReloadKey((key) => key + 1)} />}
+      {state === 'success' && requests.length === 0 && <EmptyState title={t('request.emptyTitle')} message={t('request.emptyText')} action={<Link className="button primary inline" to="/requests/new">{t('common.newRequest')}</Link>} />}
+      {state === 'success' && requests.length > 0 && <section className="request-section">
+        <div className="section-heading"><div><p className="eyebrow dark">{t('dashboard.personal')}</p><h2>{t('request.recentTitle')}</h2></div><Link className="text-link" to="/requests">{t('common.viewAll')}</Link></div>
+        <div className="request-list">{requests.slice(0, 3).map((item) => <VehicleRequestCard key={item.id} request={item} />)}</div>
+      </section>}
     </div>
   );
 }
-
 export default DashboardPage;

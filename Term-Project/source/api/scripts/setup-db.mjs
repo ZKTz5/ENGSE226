@@ -78,9 +78,9 @@ for (const t of tables) {
 console.log('');
 
 // ตรวจว่า Foreign Key ถูกตั้งไว้จริง
-const fk = ['schedules', 'bookings'].flatMap((table) =>
+const fk = ['vehicle_requests'].flatMap((table) =>
   db.prepare(`PRAGMA foreign_key_list(${table})`).all().map((row) => ({ table, ...row })));
 console.log(fk.length
-  ? `  ✓ Foreign Keys: ${fk.map((row) => `${row.table}.${row.from} → ${row.table === 'schedules' ? 'campuses' : row.from === 'user_id' ? 'users' : 'schedules'}.${row.to}`).join(', ')}`
-  : '  ⚠ ไม่พบ Foreign Keys ใน Shuttle schema — ตรวจ schema.sql');
+  ? `  ✓ Foreign Keys: ${fk.map((row) => `${row.table}.${row.from} → ${row.from === 'user_id' ? 'users' : 'vehicles'}.${row.to}`).join(', ')}`
+  : '  ⚠ ไม่พบ Foreign Keys ใน vehicle request schema — ตรวจ schema.sql');
 console.log('');

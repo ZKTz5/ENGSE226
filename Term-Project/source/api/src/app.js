@@ -4,9 +4,9 @@ import morgan from 'morgan';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { config } from './config.js';
-import campusRoutes from './routes/campusRoutes.js';
-import scheduleRoutes from './routes/scheduleRoutes.js';
-import bookingRoutes from './routes/bookingRoutes.js';
+import locationRoutes from './routes/locationRoutes.js';
+import vehicleRequestRoutes from './routes/vehicleRequestRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 import healthRoutes from './routes/healthRoutes.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import authRoutes from './routes/authRoutes.js';
@@ -25,13 +25,13 @@ export function createApp() {
 
   // ④ routes — everything under /api
   app.get('/api', (req, res) => {
-    res.json({ message: 'RMUTL Shuttle Booking API is running', version: '4.0.0' });
+    res.json({ message: 'RMUTL Shuttle Vehicle Request API is running', version: '4.0.0' });
   });
   app.use('/api/health', healthRoutes);
   app.use('/api/auth', authRoutes);
-  app.use('/api/campuses', campusRoutes);
-  app.use('/api/schedules', scheduleRoutes);
-  app.use('/api/bookings', bookingRoutes);
+  app.use('/api/locations', locationRoutes);
+  app.use('/api/vehicle-requests', vehicleRequestRoutes);
+  app.use('/api/admin', adminRoutes);
 
   // ⑤ หน้าแรก / — ขึ้นกับสภาพแวดล้อม (CP39)
   if (config.isProd && existsSync(config.staticDir)) {

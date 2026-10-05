@@ -1,23 +1,32 @@
-# RMUTL Shuttle Booking System
+# RMUTL Shuttle — Vehicle Request System
 
-ระบบค้นหาและจองรถรับส่งระหว่าง **เจ็ดยอด (Jed Yod)** และ **ดอยสะเก็ด (Doi Saket)** เท่านั้น ให้บริการได้ทั้งสองทิศทาง พัฒนาบน React/Vite, Express, SQLite/libsql, JWT และ scrypt
+ระบบรับคำขอใช้รถระหว่าง **เจ็ดยอด (Jed Yod)** และ **ดอยสะเก็ด (Doi Saket)** เท่านั้น รถมีฐานประจำที่เจ็ดยอด ผู้ใช้ระบุวันและเวลาที่ต้องการเดินทาง ส่งคำขอ แล้วติดตามสถานะได้ คำขอใหม่เริ่มเป็น `PENDING`; การส่งคำขอไม่ใช่การอนุมัติให้ใช้รถ
 
-## ขอบเขตระบบ
+สถาปัตยกรรมเดิมยังคงอยู่: React/Vite → Express API → SQLite/libsql, ใช้ JWT สำหรับ session และ scrypt สำหรับ password hash
 
-- ค้นหาตารางรถด้วยต้นทาง ปลายทาง และวันที่; ต้นทางกับปลายทางต้องต่างกัน
-- จอง ยกเลิก และดูคิวสำรองที่เลื่อนตาม FIFO
-- เข้าสู่ระบบด้วยอีเมลที่ลงท้ายตรงตัวด้วย `@live.rmutl.ac.th` โดยไม่แยกตัวพิมพ์เล็ก/ใหญ่
-- ระบบเป็น login-only ไม่มีหน้าสมัครสมาชิกหรือ public self-signup บัญชีมาจาก seed หรือผู้ดูแลสร้างผ่านเครื่องมือบัญชี
-- ภาษาไทยเป็นค่าเริ่มต้นและสลับเป็น English ได้จากหน้าเว็บ
+## User workflow
 
-## ติดตั้งและเริ่มระบบในเครื่อง
+เข้าสู่ระบบ → เปิด “ขอใช้รถ” → เลือกเที่ยวเดียวหรือไป-กลับ → ระบุต้นทาง/ปลายทาง วันเวลา จำนวนผู้โดยสาร และวัตถุประสงค์ → ตรวจทาน → ส่งคำขอ (`PENDING`) → ติดตามใน “คำขอของฉัน” และดูรายละเอียด → ยกเลิกได้ขณะยัง `PENDING`.
 
-ใช้ Node.js ตาม engines ใน package files (API ต้องการ `>=22.13.0`; frontend `>=22.12.0`). จากโฟลเดอร์ `source/`:
+สถานะที่ระบบเก็บ: `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`, `COMPLETED`. เจ้าหน้าที่ที่มี admin role สามารถตรวจ อนุมัติ/ไม่อนุมัติคำขอที่รอ และบันทึกว่าคำขอที่อนุมัติแล้วดำเนินการเสร็จ ผ่าน API ที่ตรวจ JWT role ฝั่ง server. การมอบหมายต้องใช้รถ active, ความจุพอ และช่วงเวลาไม่ทับกับงานอนุมัติอื่น. สำหรับเที่ยวเดียวที่ต้องการมอบหมายรถ ต้องระบุเวลาสิ้นสุดภารกิจ. ระบบไม่ติดตาม GPS.
+
+## Login-only authentication
+
+รับเฉพาะอีเมลที่ลงท้ายตรงตัวด้วย `@live.rmutl.ac.th` (ไม่แยกตัวพิมพ์เล็ก/ใหญ่) ไม่มี registration endpoint, หน้าสมัคร หรือ public self-signup. บัญชี demo มาจาก seed; ผู้ดูแลระบบสร้างบัญชีผ่าน script เท่านั้น
+
+Seed credentials สำหรับ development/demo เท่านั้น:
+
+- User: `tan.khanit@live.rmutl.ac.th` / `rmutl1234`
+- Admin: `admin@live.rmutl.ac.th` / `rmutl1234`
+
+## Setup and local run
+
+ใช้ Node.js ตาม package engines (API `>=22.13.0`; frontend `>=22.12.0`). จากโฟลเดอร์ `source/`:
 
 ```bash
 npm install --prefix api
 npm install --prefix frontend
-cp api/.env.example api/.env   # ตั้งค่าเฉพาะเครื่องพัฒนา หากยังไม่มีไฟล์
+cp api/.env.example api/.env   # สำหรับค่าเฉพาะเครื่องพัฒนาเท่านั้น
 npm run db:setup --prefix api
 npm run dev --prefix api
 ```
@@ -28,51 +37,36 @@ npm run dev --prefix api
 npm run dev --prefix frontend
 ```
 
-ค่าเริ่มต้นคือ API `http://localhost:3001` และเว็บ Vite `http://localhost:5173` หากต้องเริ่ม backend/frontend คำสั่ง dev จะอ่าน `api/.env` และ frontend ใช้ `VITE_API_BASE_URL` เมื่อจำเป็น
+API ปกติอยู่ที่ `http://localhost:3001`; frontend Vite ที่ `http://localhost:5173`. กำหนด `VITE_API_BASE_URL` เมื่อ API อยู่คนละ URL จากค่า default. ห้าม commit `.env` หรือ secrets.
 
-### รีเซ็ตฐานข้อมูลพัฒนาอย่างปลอดภัย
+## Safe disposable database reset
 
-สร้าง/รีเซ็ตฐานข้อมูลชั่วคราวโดยไม่แตะไฟล์ฐานข้อมูลเดิม:
-
-```bash
-DB_FILE=/tmp/rmutl-shuttle-dev.db npm run db:reset --prefix api
-```
-
-การ reset ฐานข้อมูลพัฒนาเริ่มต้นต้องหยุด API ก่อน แล้วค่อยใช้ `npm run db:reset --prefix api`; สคริปต์สำรองไฟล์เดิมเป็นชื่อ `.backup-<timestamp>` ก่อนแทนที่ ห้ามใช้คำสั่ง reset กับข้อมูล production หรือฐานข้อมูลผู้ใช้ที่ต้องเก็บไว้ สคริปต์เริ่มระบบจะไม่ลบหรือ migrate schema Campus Service เก่าโดยอัตโนมัติ
-
-บัญชี seed สำหรับ demo ใช้รหัสผ่าน `rmutl1234` และอีเมล `@live.rmutl.ac.th` ใช้เฉพาะ development เท่านั้น ตัวอย่าง login: `tan.khanit@live.rmutl.ac.th`. ผู้ดูแลสร้างบัญชีได้ด้วย:
+คำสั่งตรวจสอบและทดลองที่ไม่แตะ `source/api/data/campus.db`:
 
 ```bash
-npm run create-user --prefix api -- <อีเมล@live.rmutl.ac.th> <รหัสผ่าน> [ชื่อ] [user|admin]
+DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api
 ```
 
-ไม่มี API สมัครสมาชิกสำหรับผู้ใช้ทั่วไป
+คำสั่งนี้สร้าง `users`, `vehicles`, `vehicle_requests` พร้อม seed users; fleet/request tables เริ่มว่าง. ห้ามชี้ไปยัง production หรือ user database. การ reset default DB ต้องหยุด API ก่อนและเป็นคำสั่ง explicit; `setup-db.mjs --force` ทำสำเนา timestamped backup ก่อนแทนไฟล์ แต่ reset จะสร้าง schema/seed ใหม่และไม่แปลง booking เก่าเป็นคำขอ เพราะ purpose, passenger count, service interval และ approval ไม่มีอยู่ในข้อมูลเดิม. สำรอง/export ข้อมูลที่ต้องเก็บก่อน reset. Startup ไม่ auto-reset database เก่า.
 
-## ตรวจสอบและ build
+เพิ่มบัญชีผู้ใช้/admin ผ่านเครื่องมือ operator:
+
+```bash
+npm run create-user --prefix api -- <email@live.rmutl.ac.th> <password> [name] [user|admin]
+```
+
+## Tests and build
 
 จาก `source/`:
 
 ```bash
-npm test       # backend และ frontend
-npm run check  # project/API/frontend structural checks
-npm run build  # production Vite build และ API dependency install ตาม root script
+npm test
+npm run check
+npm run build
 ```
 
-ฐานทดสอบ backend ใช้ Vitest และ integration tests; frontend ใช้ Vitest. รายงาน audit พร้อมผลล่าสุดอยู่ที่ `../FINAL_AUDIT_REPORT.md`; ภาพรวม handoff อยู่ที่ `../AGENT_HANDOFF.md`.
+Backend ใช้ Vitest + Supertest integration tests; frontend ใช้ Vitest และ static route/flow checks. ดู `API_CONTRACT.md` สำหรับ contract ปัจจุบัน, `../REQUEST_WORKFLOW_MIGRATION.md` สำหรับเหตุผล/แผนย้ายโดเมน และ `../FINAL_AUDIT_REPORT.md` สำหรับผล verify ล่าสุด
 
-## API หลัก
+## Production limitations
 
-- `POST /api/auth/login`
-- `GET /api/campuses`
-- `GET /api/schedules?originId=&destinationId=&date=`
-- `GET /api/schedules/:id`
-- `POST /api/bookings` (JWT)
-- `GET /api/bookings/my` (JWT)
-- `DELETE /api/bookings/:id` (JWT เจ้าของรายการ)
-- `GET /api/health`
-
-รายละเอียดเพิ่มเติมดู `API_CONTRACT.md`. การจองและเลื่อน FIFO ใช้ transaction ใน SQLite.
-
-## Production limitation
-
-การ build และ local tests ผ่าน แต่ยังไม่มี production deployment หรือ persistent production database ที่ยืนยันแล้ว SQLite บน free ephemeral storage ไม่เหมาะกับข้อมูล booking ระยะยาว และยังไม่ได้ทดสอบ transaction concurrency บน remote database.
+ยังไม่มีการ deploy หรือ persistent production database ที่ตรวจยืนยันแล้ว. ยังไม่มี live fleet registry seed; admin ต้องบันทึกรถจริงก่อนมอบหมาย. ไม่มี GPS tracking หรือ integration กับ dispatch/notification service. การแจ้งเตือนสถานะอาศัยผู้ใช้เปิด My Requests/refresh หน้า.

@@ -1,78 +1,67 @@
 #!/usr/bin/env node
-/** Static structure check for the active RMUTL Shuttle frontend. */
+/** Static structure checks for the active request-based RMUTL Shuttle frontend. */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const checks = [];
-
-async function read(relativePath) {
-  return readFile(path.join(ROOT, relativePath), 'utf8');
-}
-
+async function read(relativePath) { return readFile(path.join(ROOT, relativePath), 'utf8'); }
 async function check(name, callback) {
-  try {
-    const result = await callback();
-    checks.push({ name, passed: Boolean(result) });
-  } catch (error) {
-    checks.push({ name, passed: false, error: error.message });
-  }
+  try { checks.push({ name, passed: Boolean(await callback()) }); }
+  catch (error) { checks.push({ name, passed: false, error: error.message }); }
 }
-
-await check('Shuttle login, dashboard, search, detail, bookings, and guide routes', async () => {
+await check('request routes replace schedule and booking routes', async () => {
   const app = await read('src/App.jsx');
-  const header = await read('src/components/AppHeader.jsx');
-  return ['path="login"', 'path="schedules"', 'path="schedules/:scheduleId"', 'path="bookings"', 'path="guide"']
-    .every((route) => app.includes(route))
-    && header.includes('to="/guide"') && header.includes("t('nav.guide')");
+  return ['path="requests/new"', 'path="requests"', 'path="requests/:requestId"', 'path="admin/requests"', 'path="guide"']
+    .every((route) => app.includes(route)) && !app.includes('path="schedules') && !app.includes('path="bookings');
 });
-await check('Shuttle login and schedule API service calls', async () => {
-  const service = await read('src/services/shuttleService.js');
-  return ['/api/auth/login', '/api/campuses', '/api/schedules', '/api/bookings/my'].every((path) => service.includes(path));
+await check('new request form validates, reviews, then uses live API', async () => {
+  const page = await read('src/pages/NewRequestPage.jsx');
+  const service = await read('src/services/vehicleRequestService.js');
+  const util = await read('src/utils/vehicleRequestForm.js');
+  return page.includes('validateVehicleRequestDraft(draft)') && page.includes('setReviewing(true)')
+    && page.includes('await createVehicleRequest(') && page.includes('disabled={submitting}')
+    && service.includes('/api/vehicle-requests') && util.includes("'Jed Yod', 'Doi Saket'");
 });
-await check('Loading, empty, and error states exist', async () => {
+await check('PENDING feedback follows API response and reports no false approval', async () => {
+  const ticket = await read('src/components/RequestSubmissionTicket.jsx');
+  const page = await read('src/pages/NewRequestPage.jsx');
+  return page.includes('setCreated(response)') && ticket.includes('request.status')
+    && ticket.includes('request.ticket.submitted') && ticket.includes("request.status === 'APPROVED'");
+});
+await check('My Requests, ownership detail route, cancellation, and admin UI exist', async () => {
+  const [mine, detail, admin, header] = await Promise.all([
+    read('src/pages/MyRequestsPage.jsx'), read('src/pages/RequestDetailPage.jsx'),
+    read('src/pages/AdminRequestsPage.jsx'), read('src/components/AppHeader.jsx'),
+  ]);
+  return mine.includes('getMyVehicleRequests') && mine.includes('cancelVehicleRequest')
+    && detail.includes('getVehicleRequest(requestId)') && detail.includes("item.status === 'PENDING'")
+    && admin.includes('approveVehicleRequest') && admin.includes('rejectVehicleRequest') && admin.includes('completeVehicleRequest')
+    && header.includes("session?.user?.role === 'admin'");
+});
+await check('Thai default, bilingual switch, guide and loading/empty/error states remain', async () => {
+  const [html, context, header, guide, app] = await Promise.all([
+    read('index.html'), read('src/contexts/LanguageContext.jsx'), read('src/components/AppHeader.jsx'),
+    read('src/pages/UserGuidePage.jsx'), read('src/App.jsx'),
+  ]);
+  const states = await Promise.all(['LoadingState.jsx', 'EmptyState.jsx', 'ErrorState.jsx'].map((name) => read(`src/components/${name}`)));
+  return html.includes('<html lang="th">') && context.includes("return 'th'")
+    && header.includes('toggleLanguage') && guide.includes('Array.from') && app.includes('path="guide"')
+    && states.every(Boolean);
+});
+await check('active source contains no recurring schedule or passenger waitlist flow', async () => {
+  const app = await read('src/App.jsx');
   const files = await Promise.all([
-    read('src/components/LoadingState.jsx'),
-    read('src/components/EmptyState.jsx'),
-    read('src/components/ErrorState.jsx'),
+    read('src/pages/DashboardPage.jsx'), read('src/pages/NewRequestPage.jsx'),
+    read('src/pages/MyRequestsPage.jsx'), read('src/pages/RequestDetailPage.jsx'),
   ]);
-  return files.every(Boolean);
+  return !/schedules|bookings|waitlist|availableSeats|confirmedCount/i.test(app + files.join('\n'));
 });
-await check('Thai is default and bilingual switch is wired without reload', async () => {
-  const [html, app, header, languageContext, dictionary] = await Promise.all([
-    read('index.html'), read('src/App.jsx'), read('src/components/AppHeader.jsx'),
-    read('src/contexts/LanguageContext.jsx'), read('src/i18n/translations.js'),
-  ]);
-  return html.includes('<html lang="th">') && app.includes('<LanguageProvider>')
-    && header.includes('toggleLanguage') && header.includes('ไทย') && header.includes('EN')
-    && languageContext.includes("'th'") && dictionary.includes("export function translate");
-});
-await check('Booking feedback uses API-confirmed data and cancellation confirmation restores focus', async () => {
-  const [detail, ticket, confirmation] = await Promise.all([
-    read('src/pages/ScheduleDetailPage.jsx'), read('src/components/BookingTicket.jsx'),
-    read('src/components/ConfirmCancellationDialog.jsx'),
-  ]);
-  return detail.includes('await createBooking(schedule.id)')
-    && detail.includes('setBookingResult(created)')
-    && ticket.includes('booking.departure_time') && ticket.includes('booking.status')
-    && ticket.includes('booking.id') && !ticket.includes('waitlist_seq')
-    && confirmation.includes('showModal()') && confirmation.includes('.focus(')
-    && confirmation.includes('restoreFocusTarget');
-});
-await check('Reduced motion support is present', async () => {
+await check('reduced motion and focus styles are present', async () => {
   const styles = await read('src/styles.css');
-  return styles.includes('@media (prefers-reduced-motion: reduce)')
-    && styles.includes('animation-duration: .01ms');
+  return styles.includes('@media (prefers-reduced-motion: reduce)') && styles.includes(':focus-visible');
 });
-await check('Document identifies the RMUTL Shuttle app', async () => {
-  const html = await read('index.html');
-  return html.includes('RMUTL Shuttle Booking');
-});
-
-for (const result of checks) {
-  console.log(`${result.passed ? 'PASS' : 'FAIL'} ${result.name}${result.error ? `: ${result.error}` : ''}`);
-}
-const passed = checks.filter(({ passed: ok }) => ok).length;
-console.log(`\n${passed}/${checks.length} frontend checks passed`);
+for (const result of checks) console.log(`${result.passed ? 'PASS' : 'FAIL'} ${result.name}${result.error ? `: ${result.error}` : ''}`);
+const passed = checks.filter(({ passed: value }) => value).length;
+console.log(`\n${passed}/${checks.length} frontend request checks passed`);
 if (passed !== checks.length) process.exitCode = 1;

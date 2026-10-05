@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState } from 'react';
-import { login as loginRequest } from '../services/shuttleService.js';
+import { login as loginRequest } from '../services/authService.js';
 import { setApiAuthToken } from '../services/apiClient.js';
 
 const AuthContext = createContext(null);

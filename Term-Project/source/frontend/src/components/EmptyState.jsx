@@ -5,8 +5,8 @@ function EmptyState({ title, message, action }) {
   return (
     <section className="state-card empty-state" data-testid="empty-state">
       <span className="empty-icon" aria-hidden="true">↗</span>
-      <h2>{title ?? t('state.noSchedulesTitle')}</h2>
-      <p>{message ?? t('state.noSchedulesText')}</p>
+      <h2>{title ?? t('state.emptyTitle')}</h2>
+      <p>{message ?? t('state.emptyText')}</p>
       {action}
     </section>
   );

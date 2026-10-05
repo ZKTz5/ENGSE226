@@ -2,12 +2,12 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
-import { apiErrorKey, displayCampusName } from '../i18n/translations.js';
+import { apiErrorKey } from '../i18n/translations.js';
 import { isInstitutionalEmail } from '../utils/institutionalEmail.js';
 
 function LoginPage() {
   const { session, signIn } = useAuth();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +42,7 @@ function LoginPage() {
     try {
       await signIn({ email: email.trim(), password });
       setState('success');
-      navigate('/', { replace: true });
+      navigate('/requests/new', { replace: true });
     } catch (reason) {
       setErrorKey(apiErrorKey(reason));
       setState('idle');
@@ -55,7 +55,7 @@ function LoginPage() {
         <p className="eyebrow">RMUTL SHUTTLE</p>
         <h1>{t('dashboard.headline')}</h1>
         <p>{t('dashboard.intro')}</p>
-        <span className="login-route-graphic" aria-hidden="true">{displayCampusName('Jed Yod', language)} <i /> {displayCampusName('Doi Saket', language)}</span>
+        <span className="login-route-graphic" aria-hidden="true">{t('campus.jedYod')} <i /> {t('campus.doiSaket')}</span>
       </div>
       <form className="login-card" onSubmit={handleSubmit} noValidate>
         <p className="eyebrow dark">{t('login.eyebrow')}</p>
@@ -79,7 +79,6 @@ function LoginPage() {
         <button className="button primary login-submit" type="submit" disabled={state === 'loading'}>
           {state === 'loading' ? t('login.submitting') : t('login.submit')}
         </button>
-        <p className="login-footnote">{t('login.browse')} <Link to="/schedules">{t('login.browseLink')}</Link></p>
       </form>
     </section>
   );
