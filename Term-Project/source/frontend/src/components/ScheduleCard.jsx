@@ -7,7 +7,7 @@ export { formatDeparture };
 function ScheduleCard({ schedule }) {
   const { language, t } = useLanguage();
   return (
-    <article className="schedule-card">
+    <article className={`schedule-card${schedule.status === 'expired' ? ' is-expired' : ''}`}>
       <div className="schedule-time-block">
         <span className="schedule-date-label">{t('common.departure')}</span>
         <strong>{formatDeparture(schedule.departure_time, language)}</strong>

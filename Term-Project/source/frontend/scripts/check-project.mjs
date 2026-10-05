@@ -46,6 +46,23 @@ await check('Thai is default and bilingual switch is wired without reload', asyn
     && header.includes('toggleLanguage') && header.includes('ไทย') && header.includes('EN')
     && languageContext.includes("'th'") && dictionary.includes("export function translate");
 });
+await check('Booking feedback uses API-confirmed data and cancellation confirmation restores focus', async () => {
+  const [detail, ticket, confirmation] = await Promise.all([
+    read('src/pages/ScheduleDetailPage.jsx'), read('src/components/BookingTicket.jsx'),
+    read('src/components/ConfirmCancellationDialog.jsx'),
+  ]);
+  return detail.includes('await createBooking(schedule.id)')
+    && detail.includes('setBookingResult(created)')
+    && ticket.includes('booking.departure_time') && ticket.includes('booking.status')
+    && ticket.includes('booking.id') && !ticket.includes('waitlist_seq')
+    && confirmation.includes('showModal()') && confirmation.includes('.focus(')
+    && confirmation.includes('restoreFocusTarget');
+});
+await check('Reduced motion support is present', async () => {
+  const styles = await read('src/styles.css');
+  return styles.includes('@media (prefers-reduced-motion: reduce)')
+    && styles.includes('animation-duration: .01ms');
+});
 await check('Document identifies the RMUTL Shuttle app', async () => {
   const html = await read('index.html');
   return html.includes('RMUTL Shuttle Booking');

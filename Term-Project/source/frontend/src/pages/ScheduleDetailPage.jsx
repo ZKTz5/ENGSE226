@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import ErrorState from '../components/ErrorState.jsx';
+import BookingTicket from '../components/BookingTicket.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
 import { useLanguage } from '../contexts/LanguageContext.jsx';
@@ -12,6 +13,7 @@ function ScheduleDetailPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
   const { language, t } = useLanguage();
+  const bookingButtonRef = useRef(null);
   const [schedule, setSchedule] = useState(null);
   const [state, setState] = useState('loading');
   const [errorKey, setErrorKey] = useState('');
@@ -69,18 +71,11 @@ function ScheduleDetailPage() {
           <p className={`detail-status ${schedule.status}`} role="status">{t(`status.${schedule.status}`)}</p>
           {schedule.status === 'expired' && <p className="muted-copy">{t('detail.expiredHelp')}</p>}
           {schedule.status === 'full' && <p className="muted-copy">{t('detail.fullHelp')}</p>}
-          {bookingResult && (
-            <div className={`booking-outcome ${bookingResult.status}`} role="status">
-              {bookingResult.status === 'waitlisted'
-                ? <>{t('ticket.waitlistStatus')} {t('ticket.waitlistHelp')}</>
-                : t('ticket.confirmedStatus')}
-              {' '}<Link to="/bookings">{t('common.openBookings')}</Link>
-            </div>
-          )}
+          {bookingResult && <BookingTicket booking={bookingResult} schedule={schedule} />}
           {bookingErrorKey && <p className="form-error" role="alert">{t(bookingErrorKey)}</p>}
           {schedule.status !== 'expired' && (
             session ? (
-              <button className="button primary booking-action" type="button" onClick={handleBooking} disabled={bookingLoading}>
+              <button ref={bookingButtonRef} className="button primary booking-action" type="button" onClick={handleBooking} disabled={bookingLoading}>
                 {bookingLoading ? t('detail.submitting') : schedule.status === 'full' || schedule.status === 'waitlist' ? t('detail.joinWaitlist') : t('detail.book')}
               </button>
             ) : (

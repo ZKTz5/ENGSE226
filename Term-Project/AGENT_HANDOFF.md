@@ -374,6 +374,26 @@ Jed Yod and Doi Saket only. Deployment checks and evidence remain.
 - Verification: frontend tests 16/16 and Vite production build passed; the
   visual CSS change does not touch booking logic.
 
+### Booking feedback and micro-interactions
+
+- A successful API response now opens an accessible ticket panel containing
+  the returned booking reference, status, and departure time plus the matching
+  route names from the already loaded schedule API response. It cannot appear
+  before `createBooking()` resolves.
+- Confirmed tickets use the localized Thai `จองสำเร็จ` or English `CONFIRMED`
+  stamp. Waitlist tickets use `คิวสำรอง` or `WAITLIST`, explain FIFO promotion,
+  and do not present `waitlist_seq` as a queue position because that API field is
+  diagnostic rather than a current position.
+- Cancellation now requires a native accessible confirmation dialog. Focus
+  moves into the dialog and returns to the triggering action or page heading;
+  pending submissions disable repeat actions. A completed cancellation is
+  immediately marked cancelled in the UI after the API confirms it.
+- Schedule entry, subtle button hover/pressed states, and ticket stamp motion are
+  CSS-only feedback. Expired cards remain muted and do not lift on hover.
+  `prefers-reduced-motion` suppresses transitions and animations.
+- Verification: frontend tests 16/16, frontend checks 7/7, and production build
+  passed. Existing API booking/FIFO behavior was not changed.
+
 ## Sprint 1–4 Gap Analysis (2026-10-06)
 
 | Sprint | Already implemented | Remaining at start of this phase |

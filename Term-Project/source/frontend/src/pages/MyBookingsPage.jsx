@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../components/EmptyState.jsx';
+import ConfirmCancellationDialog from '../components/ConfirmCancellationDialog.jsx';
 import ErrorState from '../components/ErrorState.jsx';
 import LoadingState from '../components/LoadingState.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
@@ -11,11 +12,13 @@ import { cancelBooking, getMyBookings } from '../services/shuttleService.js';
 function MyBookingsPage() {
   const { session } = useAuth();
   const { language, t } = useLanguage();
+  const headingRef = useRef(null);
   const [bookings, setBookings] = useState([]);
   const [state, setState] = useState('loading');
   const [errorKey, setErrorKey] = useState('');
   const [noticeKey, setNoticeKey] = useState('');
   const [cancelingId, setCancelingId] = useState(null);
+  const [pendingCancellation, setPendingCancellation] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
 
   const loadBookings = useCallback(() => {
@@ -38,12 +41,21 @@ function MyBookingsPage() {
     setNoticeKey('');
     try {
       const result = await cancelBooking(booking.id);
+      setBookings((current) => current.map((item) => item.id === booking.id
+        ? { ...item, status: 'cancelled' }
+        : item));
       setNoticeKey(result.promotedId
         ? 'bookings.promotedNotice'
         : booking.status === 'waitlisted' ? 'bookings.waitlistCancelled' : 'bookings.cancelledNotice');
-      setBookings(await getMyBookings());
+      setPendingCancellation(null);
+      try {
+        setBookings(await getMyBookings());
+      } catch (reason) {
+        setErrorKey(apiErrorKey(reason));
+      }
     } catch (reason) {
-      setErrorKey(reason?.code ? apiErrorKey(reason) : 'bookings.cancelError');
+      setErrorKey(apiErrorKey(reason));
+      setPendingCancellation(null);
     } finally {
       setCancelingId(null);
     }
@@ -61,7 +73,7 @@ function MyBookingsPage() {
 
   return (
     <section className="page-section" data-testid="page-my-bookings">
-      <div className="page-heading"><div><p className="eyebrow dark">{t('bookings.eyebrow')}</p><h1>{t('bookings.title')}</h1><p>{t('bookings.intro')}</p></div></div>
+      <div className="page-heading"><div><p className="eyebrow dark">{t('bookings.eyebrow')}</p><h1 ref={headingRef} tabIndex={-1}>{t('bookings.title')}</h1><p>{t('bookings.intro')}</p></div></div>
       {noticeKey && <p className="notice" role="status">{t(noticeKey)}</p>}
       {state === 'loading' && <LoadingState message={t('common.loadingBookings')} />}
       {state === 'error' && <ErrorState message={t(errorKey)} onRetry={() => setReloadKey((key) => key + 1)} />}
@@ -83,7 +95,7 @@ function MyBookingsPage() {
                 <Link className="button secondary" to={`/schedules/${booking.schedule_id}`}>{t('bookings.details')}</Link>
                 {booking.status !== 'cancelled' && (
                   <button className="button cancel-button" type="button" disabled={cancelingId === booking.id}
-                    onClick={() => handleCancel(booking)}>
+                    onClick={() => setPendingCancellation(booking)}>
                     {cancelingId === booking.id ? t('bookings.cancelling') : t('bookings.cancel')}
                   </button>
                 )}
@@ -93,6 +105,20 @@ function MyBookingsPage() {
         </div>
       )}
       {errorKey && state === 'success' && <p className="form-error" role="alert">{t(errorKey)}</p>}
+      {pendingCancellation && (
+        <ConfirmCancellationDialog
+          open
+          pending={cancelingId === pendingCancellation.id}
+          title={t('bookings.cancelConfirmTitle')}
+          message={t('bookings.cancelConfirmText')}
+          keepLabel={t('bookings.keep')}
+          confirmLabel={t('bookings.cancelConfirmAction')}
+          pendingLabel={t('bookings.cancelling')}
+          restoreFocusTarget={headingRef.current}
+          onKeep={() => setPendingCancellation(null)}
+          onConfirm={() => handleCancel(pendingCancellation)}
+        />
+      )}
     </section>
   );
 }

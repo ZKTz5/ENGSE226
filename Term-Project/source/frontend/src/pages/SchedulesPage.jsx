@@ -96,7 +96,9 @@ function SchedulesPage() {
             <label htmlFor="travel-date">{t('schedule.travelDate')}</label>
             <input id="travel-date" name="date" type="date" value={filters.date} onInvalid={(event) => event.currentTarget.setCustomValidity(t('validation.required'))} onChange={updateFilter} required />
           </div>
-          <button className="button primary search-button" type="submit" disabled={state === 'loading' && campuses.length === 0}>{t('schedule.search')}</button>
+          <button className="button primary search-button" type="submit" disabled={state === 'loading'}>
+            {state === 'loading' && searched ? t('schedule.searching') : t('schedule.search')}
+          </button>
         </div>
       </form>
 
