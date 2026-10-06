@@ -1,0 +1,20 @@
+# Render Blueprint for the repository's deployed Shuttle project at Term-Project/source.
+services:
+  - type: web
+    name: rmutl-shuttle
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: Term-Project/source
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health          # Render รอให้ตอบ 2xx ก่อนเปิดให้ใช้งาน
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: JWT_SECRET
+        sync: false
+      # Render assigns PORT. File-backed SQLite on the free plan is ephemeral;
+      # configure a supported persistent database before relying on production data.
