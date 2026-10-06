@@ -10,21 +10,22 @@ import { apiErrorKey } from '../i18n/translations.js';
 import { getMyVehicleRequests } from '../services/vehicleRequestService.js';
 
 function DashboardPage() {
-  const { session } = useAuth();
+  const { session, ready } = useAuth();
   const { t } = useLanguage();
   const [requests, setRequests] = useState([]);
-  const [state, setState] = useState(session ? 'loading' : 'guest');
+  const [state, setState] = useState('loading');
   const [errorKey, setErrorKey] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
+    if (!ready) return undefined;
     if (!session) { setState('guest'); setRequests([]); return undefined; }
     let ignore = false;
     setState('loading');
     getMyVehicleRequests().then((rows) => { if (!ignore) { setRequests(rows); setState('success'); } })
       .catch((error) => { if (!ignore) { setErrorKey(apiErrorKey(error)); setState('error'); } });
     return () => { ignore = true; };
-  }, [session, reloadKey]);
+  }, [session, ready, reloadKey]);
 
   return (
     <div data-testid="page-dashboard">

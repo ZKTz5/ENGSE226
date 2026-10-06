@@ -5,9 +5,14 @@
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:3001';
 let authToken = '';
+let unauthorizedHandler = () => {};
 
 export function setApiAuthToken(token) {
   authToken = token ?? '';
+}
+
+export function setUnauthorizedHandler(handler) {
+  unauthorizedHandler = typeof handler === 'function' ? handler : () => {};
 }
 
 /** error ที่รู้ว่ามาจาก API พร้อม status ที่ได้กลับมา */
@@ -37,6 +42,7 @@ async function parseError(response) {
  */
 export async function apiFetch(path, options = {}) {
   let response;
+  const requestToken = authToken;
   const { headers: optionHeaders = {}, ...fetchOptions } = options;
   try {
     response = await fetch(`${BASE_URL}${path}`, {
@@ -54,6 +60,10 @@ export async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const error = await parseError(response);
+    if (response.status === 401 && requestToken && authToken === requestToken) {
+      authToken = '';
+      unauthorizedHandler();
+    }
     throw new ApiError(error.message, response.status, error.code);
   }
 

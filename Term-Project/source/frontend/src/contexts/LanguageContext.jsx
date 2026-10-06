@@ -16,12 +16,16 @@ export function nextLanguage(current) {
   return current === 'th' ? 'en' : 'th';
 }
 
+export function persistLanguage(language, storage) {
+  try { storage?.setItem(LANGUAGE_KEY, language); } catch { /* storage is optional */ }
+}
+
 export function LanguageProvider({ children }) {
   const [language, setLanguage] = useState(() => getInitialLanguage(globalThis.localStorage));
 
   useEffect(() => {
     document.documentElement.lang = language;
-    try { globalThis.localStorage?.setItem(LANGUAGE_KEY, language); } catch { /* storage is optional */ }
+    persistLanguage(language, globalThis.localStorage);
   }, [language]);
 
   const value = useMemo(() => ({
