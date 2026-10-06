@@ -3,3 +3,4 @@ data/requests.json
 .env
 .DS_Store
 *.env
+*.db

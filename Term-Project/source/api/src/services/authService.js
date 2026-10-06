@@ -3,7 +3,7 @@ import { config } from '../config.js';
 import { findUserByEmail } from './shuttleDb.js';
 import { verifyPassword } from '../utils/password.js';
 
-const RMUTL_DOMAIN = '@rmutl.ac.th';
+const RMUTL_EMAIL = /^[^@\s]+@live\.rmutl\.ac\.th$/;
 
 /**
  * login(email, password)
@@ -18,7 +18,7 @@ const RMUTL_DOMAIN = '@rmutl.ac.th';
  */
 export function login(email, password) {
   const normalized = String(email ?? '').trim().toLowerCase();
-  if (!normalized.endsWith(RMUTL_DOMAIN)) {
+  if (!RMUTL_EMAIL.test(normalized)) {
     return { ok: false, status: 400, error: 'invalid_email_domain' };
   }
   const user = findUserByEmail(normalized);

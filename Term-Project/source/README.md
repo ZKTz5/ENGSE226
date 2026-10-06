@@ -1,124 +1,74 @@
-# RMUTL Shuttle Booking System
+# RMUTL Shuttle — Vehicle Request System
 
-ระบบค้นหาเที่ยวรถและจองรถรับส่งระหว่างวิทยาเขต · **React + Express API + SQLite**
+ระบบรับคำขอใช้รถระหว่าง **เจ็ดยอด (Jed Yod)** และ **ดอยสะเก็ด (Doi Saket)** เท่านั้น รถมีฐานประจำที่เจ็ดยอด ผู้ใช้ระบุวันและเวลาที่ต้องการเดินทาง ส่งคำขอ แล้วติดตามสถานะได้ คำขอใหม่เริ่มเป็น `PENDING`; การส่งคำขอไม่ใช่การอนุมัติให้ใช้รถ
 
-## สถาปัตยกรรม 3 ชั้น
+สถาปัตยกรรมเดิมยังคงอยู่: React/Vite → Express API → SQLite/libsql, ใช้ JWT สำหรับ session และ scrypt สำหรับ password hash
 
-```
-┌─────────────┐   HTTP    ┌──────────────┐   SQL    ┌───────────┐
-│  React      │ ────────► │  Express API │ ───────► │  SQLite   │
-│  (frontend) │ ◄──────── │  (api)       │ ◄─────── │  campus.db│
-└─────────────┘   JSON    └──────────────┘   rows   └───────────┘
-   พอร์ต 5173              พอร์ต 3001              ไฟล์ในเครื่อง
-```
+## User workflow
 
-| ชั้น | หน้าที่ | โฟลเดอร์ |
-|---|---|---|
-| Frontend | หน้าจอผู้ใช้ · เรียก API | `frontend/` |
-| API | auth · campus · schedule · booking routes/services | `api/src/` |
-| Database | เก็บบัญชีผู้ใช้ · วิทยาเขต · ตารางรถ · การจอง | `api/data/campus.db` |
+เข้าสู่ระบบ → เปิด “ขอใช้รถ” → เลือกเที่ยวเดียวหรือไป-กลับ → ระบุต้นทาง/ปลายทาง วันเวลา จำนวนผู้โดยสาร และวัตถุประสงค์ → ตรวจทาน → ส่งคำขอ (`PENDING`) → ติดตามใน “คำขอของฉัน” และดูรายละเอียด → ยกเลิกได้ขณะยัง `PENDING`.
 
-## วิธีรัน (development)
+สถานะที่ระบบเก็บ: `PENDING`, `APPROVED`, `REJECTED`, `CANCELLED`, `COMPLETED`. เจ้าหน้าที่ที่มี admin role สามารถตรวจ อนุมัติ/ไม่อนุมัติคำขอที่รอ และบันทึกว่าคำขอที่อนุมัติแล้วดำเนินการเสร็จ ผ่าน API ที่ตรวจ JWT role ฝั่ง server. การมอบหมายต้องใช้รถ active, ความจุพอ และช่วงเวลาไม่ทับกับงานอนุมัติอื่น. สำหรับเที่ยวเดียวที่ต้องการมอบหมายรถ ต้องระบุเวลาสิ้นสุดภารกิจ. ระบบไม่ติดตาม GPS.
 
-```bash
-# ชั้นฐานข้อมูล + API
-cd api
-npm install
-cp .env.example .env
-npm run db:setup      # สร้าง campus.db จาก schema.sql
-npm run dev           # API ที่ http://localhost:3001
+## Login-only authentication
 
-# ชั้น frontend (อีก terminal)
-cd frontend
-npm install
-npm run dev           # React ที่ http://localhost:5173
-```
+รับเฉพาะอีเมลที่ลงท้ายตรงตัวด้วย `@live.rmutl.ac.th` (ไม่แยกตัวพิมพ์เล็ก/ใหญ่) ไม่มี registration endpoint, หน้าสมัคร หรือ public self-signup. บัญชี demo มาจาก seed; ผู้ดูแลระบบสร้างบัญชีผ่าน script เท่านั้น
 
-## วิธีรัน (production)
+Seed credentials สำหรับ development/demo เท่านั้น:
+
+- User: `tan.khanit@live.rmutl.ac.th` / `rmutl1234`
+- Admin: `admin@live.rmutl.ac.th` / `rmutl1234`
+
+## Setup and local run
+
+ใช้ Node.js ตาม package engines (API `>=22.13.0`; frontend `>=22.12.0`). จากโฟลเดอร์ `source/`:
 
 ```bash
-# build แบบเดียวกับ cloud (script อยู่ใน package.json ระดับบนสุด)
-NODE_ENV=production npm install
-NODE_ENV=production npm run build
-
-# start — เสิร์ฟทั้งหน้าเว็บและ API จากพอร์ตเดียว (สัปดาห์ 13: production ต้องตั้ง JWT_SECRET ไม่งั้นไม่ยอม start)
-NODE_ENV=production JWT_SECRET=<ค่าสุ่ม> PORT=10000 npm start
-# เปิด http://localhost:10000
+npm install --prefix api
+npm install --prefix frontend
+cp api/.env.example api/.env   # สำหรับค่าเฉพาะเครื่องพัฒนาเท่านั้น
+npm run db:setup --prefix api
+npm run dev --prefix api
 ```
 
-| ไฟล์ | ทำให้ production ทำงานอย่างไร |
-|---|---|
-| `frontend/.env.production` | `VITE_API_BASE_URL=` ว่าง → frontend เรียก `/api/...` บนโดเมนเดียวกัน |
-| `api/src/app.js` | production เสิร์ฟ `frontend/dist` · path ที่ไม่ใช่ `/api` ได้ index.html |
-| `package.json` | `build` ใช้ `--include=dev` เพราะ cloud ตั้ง NODE_ENV=production ตั้งแต่ build |
-
-## Live Demo
-
-🔗 (ใส่ URL หลัง deploy ขึ้น Render)
-
-หมายเหตุ: Render free tier — เปิดครั้งแรกช้า 30–60 วินาที · ข้อมูลที่เพิ่มจะกลับเป็นค่าตั้งต้นเมื่อ restart
-
-## ตรวจสุขภาพระบบ
+เปิด terminal อีกหน้าต่าง:
 
 ```bash
-curl http://localhost:3001/api/health
-# { "status": "ok", "env": "...", "database": { "connected": true, ... } }
+npm run dev --prefix frontend
 ```
 
-## Environment Variables
+API ปกติอยู่ที่ `http://localhost:3001`; frontend Vite ที่ `http://localhost:5173`. กำหนด `VITE_API_BASE_URL` เมื่อ API อยู่คนละ URL จากค่า default. ห้าม commit `.env` หรือ secrets.
 
-| ตัวแปร | ค่าเริ่มต้น | ความหมาย |
-|---|---|---|
-| `NODE_ENV` | development | สภาพแวดล้อม |
-| `PORT` | 3001 | พอร์ต API |
-| `CORS_ORIGIN` | http://localhost:5173 | ที่อยู่ frontend ที่อนุญาต |
-| `DB_FILE` | api/data/campus.db | ไฟล์ฐานข้อมูล |
-| `JWT_SECRET` | (dev: ค่าสำหรับพัฒนา) | secret สำหรับเซ็น JWT · production ไม่ตั้ง = ไม่ยอม start |
+## Safe disposable database reset
 
-## API Endpoints
-
-ดู `API_CONTRACT.md` สำหรับรายละเอียดครบ · สรุป: `/api/auth`, `/api/campuses`, `/api/schedules`, `/api/bookings`, `/api/health`
-
-## การตัดสินใจด้านการออกแบบ
-
-- **แยก 3 ชั้นชัดเจน** — เปลี่ยนแหล่งข้อมูลได้โดยกระทบชั้นเดียว (พิสูจน์มา 4 ครั้งใน Week 05–10)
-- **เลือก SQLite** — ข้อมูลมีโครงและความสัมพันธ์ชัด · ดู `DATABASE_CHOICES.md`
-- **config รวมศูนย์** — ไม่ hardcode · แยก dev/production ด้วย `NODE_ENV`
-
-## การทดสอบ (สัปดาห์ 12)
+คำสั่งตรวจสอบและทดลองที่ไม่แตะ `source/api/data/campus.db`:
 
 ```bash
-npm install --prefix api && npm install --prefix frontend
-npm test                 # api (Vitest) + frontend (Vitest)
-npm run coverage         # รายงานว่าบรรทัดไหนยังไม่มี test วิ่งผ่าน → api/coverage/index.html
+DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api
 ```
 
-| โฟลเดอร์ | ชนิด test | ทดสอบอะไร |
-|---|---|---|
-| `api/tests/unit/` | unit | pure function เช่น `validators/shuttleValidator.js` — ไม่ต้องเปิด server |
-| `api/tests/integration/` | integration | ยิง HTTP จริงผ่านทุกชั้น ด้วย supertest บนฐานข้อมูลในหน่วยความจำ (`DB_FILE=:memory:`) |
-| `frontend/src/**/*.test.js` | unit | pure function ฝั่ง React เช่น `utils/requestSummary.js` |
+คำสั่งนี้สร้าง `users`, `vehicles`, `vehicle_requests` พร้อม seed users; fleet/request tables เริ่มว่าง. ห้ามชี้ไปยัง production หรือ user database. การ reset default DB ต้องหยุด API ก่อนและเป็นคำสั่ง explicit; `setup-db.mjs --force` ทำสำเนา timestamped backup ก่อนแทนไฟล์ แต่ reset จะสร้าง schema/seed ใหม่และไม่แปลง booking เก่าเป็นคำขอ เพราะข้อมูลเดิมไม่พอ. สำรองข้อมูลที่ต้องเก็บก่อน reset. API startup เพียงตรวจ schema ที่มีอยู่และไม่รัน schema SQL เพื่อแทนข้อมูล; หากยังไม่มี schema ต้องสั่ง `npm run db:setup --prefix api` อย่างชัดเจน. `DB_FILE` กำหนดไฟล์ และเมื่อไม่ตั้งค่าจะใช้ `source/api/data/campus.db`.
 
-หลักฐานการไล่ปัญหา: `BUG_REPORTS.md` (อาการที่ผู้ใช้แจ้ง) · `DEBUG_LOG.md` (สาเหตุและวิธีแก้) · `TEST_CASES.md` (ตารางกรณีทดสอบ)
+ปุ่ม Reset Data ใน admin ใช้ `POST /api/admin/reset-data` โดยต้องเป็น admin JWT และตั้ง `ENABLE_ADMIN_DATA_RESET=true` ใน environment ของ API; ค่าเริ่มต้นคือปิด รวมถึง production. การทำงานนี้ลบเฉพาะ request records ภายใน transaction และเก็บ users, password hashes, admin account, vehicles, schema และไฟล์ฐานข้อมูลไว้. หน้า admin ซ่อนปุ่มเมื่อ API แจ้งว่าฟีเจอร์ปิด.
 
-
-## ความปลอดภัย (สัปดาห์ 13)
-
-| เรื่อง | ไฟล์ |
-|---|---|
-| validation login และตัวกรองตารางรถ · body ≤ 10kb | `api/src/validators/shuttleValidator.js` · `api/src/app.js` |
-| รหัสผ่านเก็บเป็น hash (scrypt) | `api/src/utils/password.js` |
-| เข้าสู่ระบบด้วย JWT | `api/src/services/authService.js` · `POST /api/auth/login` |
-| สิทธิ์: สร้างและดูการจองต้องใช้ JWT | `api/src/middleware/auth.js` · `api/src/routes/bookingRoutes.js` |
-| secret มาจาก env · production ไม่มี secret = ไม่ start | `api/src/config.js` · `api/.env.example` |
-
-บัญชีทดสอบใน schema ใช้รหัสผ่าน `rmutl1234` สำหรับ development เท่านั้น
-ก่อนใช้งานจริง ให้ตั้ง `JWT_SECRET` และสร้างบัญชีด้วย `npm run create-user --prefix api -- <อีเมล@rmutl.ac.th> <รหัสผ่าน> [ชื่อ] [user|admin]`.
+เพิ่มบัญชีผู้ใช้/admin ผ่านเครื่องมือ operator:
 
 ```bash
-curl -X POST localhost:3001/api/auth/login -H "Content-Type: application/json" \
-  -d '{"email":"tan.khanit@rmutl.ac.th","password":"rmutl1234"}'
-# → { "token": "eyJ...", "user": { ... } }
-
-curl 'localhost:3001/api/schedules?originId=1&destinationId=2'
+npm run create-user --prefix api -- <email@live.rmutl.ac.th> <password> [name] [user|admin]
 ```
+
+## Tests and build
+
+จาก `source/`:
+
+```bash
+npm test
+npm run check
+npm run build
+```
+
+Backend ใช้ Vitest + Supertest integration tests; frontend ใช้ Vitest และ static route/flow checks. ดู `API_CONTRACT.md` สำหรับ contract ปัจจุบัน, `../REQUEST_WORKFLOW_MIGRATION.md` สำหรับเหตุผล/แผนย้ายโดเมน และ `../FINAL_AUDIT_REPORT.md` สำหรับผล verify ล่าสุด
+
+## Production limitations
+
+ยังไม่มีการ deploy หรือ persistent production database ที่ตรวจยืนยันแล้ว. ยังไม่มี live fleet registry seed; admin ต้องบันทึกรถจริงก่อนมอบหมาย. ไม่มี GPS tracking หรือ integration กับ dispatch/notification service. การแจ้งเตือนสถานะอาศัยผู้ใช้เปิด My Requests/refresh หน้า.

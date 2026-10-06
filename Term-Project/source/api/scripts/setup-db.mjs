@@ -13,7 +13,7 @@
  *   DB_FILE=./data/test.db npm run db:setup    สร้างที่อื่น
  */
 import { DatabaseSync } from 'node:sqlite';
-import { readFileSync, existsSync, unlinkSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, unlinkSync, mkdirSync, copyFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,8 +44,12 @@ if (existsSync(DB_FILE)) {
     console.log('');
     process.exit(0);
   }
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupFile = `${DB_FILE}.backup-${timestamp}`;
+  copyFileSync(DB_FILE, backupFile);
+  console.log('  • สำรองฐานข้อมูลเดิมไว้ที่', backupFile);
   unlinkSync(DB_FILE);
-  console.log('  • ลบฐานข้อมูลเดิมแล้ว (--force)');
+  console.log('  • สร้างฐานข้อมูลใหม่ตามคำสั่ง --force');
 }
 
 mkdirSync(path.dirname(DB_FILE), { recursive: true });
@@ -74,9 +78,9 @@ for (const t of tables) {
 console.log('');
 
 // ตรวจว่า Foreign Key ถูกตั้งไว้จริง
-const fk = ['schedules', 'bookings'].flatMap((table) =>
+const fk = ['vehicle_requests'].flatMap((table) =>
   db.prepare(`PRAGMA foreign_key_list(${table})`).all().map((row) => ({ table, ...row })));
 console.log(fk.length
-  ? `  ✓ Foreign Keys: ${fk.map((row) => `${row.table}.${row.from} → ${row.table === 'schedules' ? 'campuses' : row.from === 'user_id' ? 'users' : 'schedules'}.${row.to}`).join(', ')}`
-  : '  ⚠ ไม่พบ Foreign Keys ใน Shuttle schema — ตรวจ schema.sql');
+  ? `  ✓ Foreign Keys: ${fk.map((row) => `${row.table}.${row.from} → ${row.from === 'user_id' ? 'users' : 'vehicles'}.${row.to}`).join(', ')}`
+  : '  ⚠ ไม่พบ Foreign Keys ใน vehicle request schema — ตรวจ schema.sql');
 console.log('');

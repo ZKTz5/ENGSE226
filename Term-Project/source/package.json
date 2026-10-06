@@ -1,7 +1,7 @@
 {
   "name": "rmutl-shuttle-system",
   "private": true,
-  "description": "ENGSE203 Week 13 — starter (เพิ่มความปลอดภัยและการเข้าสู่ระบบ)",
+  "description": "RMUTL Shuttle vehicle request system for ENGSE226",
   "engines": {
     "node": ">=22.13.0"
   },

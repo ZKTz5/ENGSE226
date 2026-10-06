@@ -17,7 +17,7 @@ export function authenticate(req, res, next) {
   const [scheme, token] = header.split(' ');               //← "Bearer eyJ…"
   if (scheme !== 'Bearer' || !token) {
     res.set('WWW-Authenticate', 'Bearer');
-    return res.status(401).json({ error: 'ต้องเข้าสู่ระบบก่อน' });
+    return res.status(401).json({ code: 'authentication_required', error: 'ต้องเข้าสู่ระบบก่อน' });
   }
   try {
     const payload = verifyToken(token);
@@ -25,7 +25,7 @@ export function authenticate(req, res, next) {
     next();
   } catch {
     res.set('WWW-Authenticate', 'Bearer error="invalid_token"');
-    return res.status(401).json({ error: 'token ไม่ถูกต้องหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
+    return res.status(401).json({ code: 'invalid_token', error: 'token ไม่ถูกต้องหรือหมดอายุ กรุณาเข้าสู่ระบบใหม่' });
   }
 }
 
@@ -34,7 +34,7 @@ export function requireRole(role) {
   return (req, res, next) => {
     // TODO: req.user?.role ไม่ตรง role → 403 { error: 'ไม่มีสิทธิ์ทำรายการนี้' }
     if (req.user?.role !== role) {
-      return res.status(403).json({ error: 'ไม่มีสิทธิ์ทำรายการนี้' });
+      return res.status(403).json({ code: 'forbidden', error: 'ไม่มีสิทธิ์ทำรายการนี้' });
     }
     next();
   };
