@@ -15,8 +15,7 @@ const REQUEST_COLUMNS = `
   r.passenger_count AS passengerCount, r.purpose, r.note, r.status,
   r.assigned_vehicle_id AS assignedVehicleId, r.rejection_reason AS rejectionReason,
   r.created_at AS createdAt, r.updated_at AS updatedAt,
-  v.code AS assignedVehicleCode, v.capacity AS assignedVehicleCapacity,
-  u.name AS requesterName, u.email AS requesterEmail`;
+  v.code AS assignedVehicleCode, v.capacity AS assignedVehicleCapacity`;
 
 function presentRequest(row) {
   if (!row) return null;
@@ -86,13 +85,41 @@ export function cancelOwnRequest(id, userId) {
 export function listAdminRequests(status) {
   const where = status ? 'WHERE r.status = ?' : '';
   return getDb().prepare(`
-    SELECT ${REQUEST_COLUMNS}
+    SELECT ${REQUEST_COLUMNS}, u.id AS requesterId, u.name AS requesterName
     FROM vehicle_requests r
     JOIN users u ON u.id = r.user_id
     LEFT JOIN vehicles v ON v.id = r.assigned_vehicle_id
     ${where}
     ORDER BY CASE r.status WHEN 'PENDING' THEN 0 ELSE 1 END, r.departure_at, r.id
-  `).all(...(status ? [status] : [])).map(presentRequest);
+  `).all(...(status ? [status] : [])).map(presentAdminRequest);
+}
+
+function presentAdminRequest(row) {
+  const result = presentRequest(row);
+  const { requesterId, requesterName, requesterEmail, ...request } = result;
+  delete request.userId;
+  request.requester = { id: requesterId, name: requesterName };
+  if (requesterEmail !== undefined) request.requester.email = requesterEmail;
+  return request;
+}
+
+export function getAdminRequest(id) {
+  const row = getDb().prepare(`
+    SELECT ${REQUEST_COLUMNS}, u.id AS requesterId, u.name AS requesterName, u.email AS requesterEmail
+    FROM vehicle_requests r
+    JOIN users u ON u.id = r.user_id
+    LEFT JOIN vehicles v ON v.id = r.assigned_vehicle_id
+    WHERE r.id = ?
+  `).get(id);
+  return row ? presentAdminRequest(row) : null;
+}
+
+export function resetRequestData() {
+  return runInImmediateTransaction((db) => {
+    const deletedRequestCount = Number(db.prepare('SELECT COUNT(*) AS count FROM vehicle_requests').get().count);
+    db.prepare('DELETE FROM vehicle_requests').run();
+    return { deletedRequestCount };
+  });
 }
 
 export function listVehicles({ activeOnly = false } = {}) {

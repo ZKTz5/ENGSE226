@@ -47,7 +47,9 @@ API ปกติอยู่ที่ `http://localhost:3001`; frontend Vite ท
 DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api
 ```
 
-คำสั่งนี้สร้าง `users`, `vehicles`, `vehicle_requests` พร้อม seed users; fleet/request tables เริ่มว่าง. ห้ามชี้ไปยัง production หรือ user database. การ reset default DB ต้องหยุด API ก่อนและเป็นคำสั่ง explicit; `setup-db.mjs --force` ทำสำเนา timestamped backup ก่อนแทนไฟล์ แต่ reset จะสร้าง schema/seed ใหม่และไม่แปลง booking เก่าเป็นคำขอ เพราะ purpose, passenger count, service interval และ approval ไม่มีอยู่ในข้อมูลเดิม. สำรอง/export ข้อมูลที่ต้องเก็บก่อน reset. Startup ไม่ auto-reset database เก่า.
+คำสั่งนี้สร้าง `users`, `vehicles`, `vehicle_requests` พร้อม seed users; fleet/request tables เริ่มว่าง. ห้ามชี้ไปยัง production หรือ user database. การ reset default DB ต้องหยุด API ก่อนและเป็นคำสั่ง explicit; `setup-db.mjs --force` ทำสำเนา timestamped backup ก่อนแทนไฟล์ แต่ reset จะสร้าง schema/seed ใหม่และไม่แปลง booking เก่าเป็นคำขอ เพราะข้อมูลเดิมไม่พอ. สำรองข้อมูลที่ต้องเก็บก่อน reset. API startup เพียงตรวจ schema ที่มีอยู่และไม่รัน schema SQL เพื่อแทนข้อมูล; หากยังไม่มี schema ต้องสั่ง `npm run db:setup --prefix api` อย่างชัดเจน. `DB_FILE` กำหนดไฟล์ และเมื่อไม่ตั้งค่าจะใช้ `source/api/data/campus.db`.
+
+ปุ่ม Reset Data ใน admin ใช้ `POST /api/admin/reset-data` โดยต้องเป็น admin JWT และตั้ง `ENABLE_ADMIN_DATA_RESET=true` ใน environment ของ API; ค่าเริ่มต้นคือปิด รวมถึง production. การทำงานนี้ลบเฉพาะ request records ภายใน transaction และเก็บ users, password hashes, admin account, vehicles, schema และไฟล์ฐานข้อมูลไว้. หน้า admin ซ่อนปุ่มเมื่อ API แจ้งว่าฟีเจอร์ปิด.
 
 เพิ่มบัญชีผู้ใช้/admin ผ่านเครื่องมือ operator:
 

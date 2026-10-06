@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate, requireRole } from '../middleware/auth.js';
 import * as vehicleRequestService from '../services/vehicleRequestService.js';
 import { REQUEST_STATUSES, validateRejectionReason, validateVehicleInput } from '../validators/requestValidator.js';
+import { config } from '../config.js';
 
 const router = Router();
 router.use(authenticate, requireRole('admin'));
@@ -13,6 +14,34 @@ router.get('/vehicle-requests', (req, res) => {
   }
   return res.json(vehicleRequestService.listAdminRequests(status));
 });
+
+router.get('/vehicle-requests/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isSafeInteger(id) || id <= 0) return res.status(404).json({ code: 'request_not_found', error: 'Request not found' });
+  const record = vehicleRequestService.getAdminRequest(id);
+  if (!record) return res.status(404).json({ code: 'request_not_found', error: 'Request not found' });
+  return res.json(record);
+});
+
+router.post('/reset-data', (req, res) => {
+  if (!config.enableAdminDataReset) {
+    return res.status(403).json({ code: 'admin_data_reset_disabled', error: 'Administrative data reset is disabled' });
+  }
+  if (req.body?.confirmation !== 'RESET') {
+    return res.status(400).json({ code: 'reset_confirmation_required', error: 'Type RESET to confirm data deletion' });
+  }
+  try {
+    return res.json(vehicleRequestService.resetRequestData());
+  } catch {
+    return res.status(500).json({ code: 'admin_data_reset_failed', error: 'Unable to reset request data' });
+  }
+});
+
+router.get('/reset-data', (_req, res) => res.json({ enabled: config.enableAdminDataReset }));
+
+router.get('/reset-data', (_req, res) => res.json({ enabled: config.enableAdminDataReset }));
+
+router.get('/reset-data', (_req, res) => res.json({ enabled: config.enableAdminDataReset }));
 
 router.get('/vehicles', (_req, res) => res.json(vehicleRequestService.listVehicles()));
 

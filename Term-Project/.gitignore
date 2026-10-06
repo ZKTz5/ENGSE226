@@ -10,8 +10,12 @@ node_modules/
 frontend/dist/
 coverage/
 
-# ฐานข้อมูลทดสอบ (campus.db ต้อง commit ตามคู่มือ)
-api/data/test.db
+# Local runtime databases must not be committed. Keep schema/seed SQL tracked.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
 
 .DS_Store
 *.log

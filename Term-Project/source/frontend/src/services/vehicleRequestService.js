@@ -25,6 +25,18 @@ export function getAdminVehicleRequests(status) {
   return apiFetch(`/api/admin/vehicle-requests${query}`);
 }
 
+export function getAdminVehicleRequest(id) {
+  return apiFetch(`/api/admin/vehicle-requests/${encodeURIComponent(id)}`);
+}
+
+export function resetAdminRequestData(confirmation) {
+  return apiFetch('/api/admin/reset-data', { method: 'POST', body: JSON.stringify({ confirmation }) });
+}
+
+export function getAdminResetAvailability() {
+  return apiFetch('/api/admin/reset-data');
+}
+
 export function getAdminVehicles() {
   return apiFetch('/api/admin/vehicles');
 }

@@ -17,7 +17,7 @@ Frontend แสดงข้อมูลและส่งคำขอผ่า�
 
 ### ลำดับสำคัญของข้อมูล
 
-- **เข้าสู่ระบบ:** Login page ส่งอีเมล/รหัสผ่าน → `POST /api/auth/login` ตรวจโดเมนและ scrypt → API คืน JWT กับ user → AuthContext เก็บ token ในหน่วยความจำ → API client แนบ Bearer token. โหลดหน้าใหม่แล้ว session ในหน่วยความจำสิ้นสุด.
+- **เข้าสู่ระบบ:** Login page ส่งอีเมล/รหัสผ่าน → `POST /api/auth/login` ตรวจโดเมนและ scrypt → API คืน JWT กับ user → AuthContext เก็บ JWT และ user ขั้นต่ำใน sessionStorage (`rmutl-shuttle-access-token`, `rmutl-shuttle-user`) → API client แนบ Bearer token. Protected routes รอการ restore ก่อนตัดสินใจ redirect; token ที่หมดอายุ/ผิดรูปถูกล้าง และ HTTP 401 พากลับ Login. ไม่เก็บรหัสผ่านหรือประวัติคำขอใน browser storage; list/detail อ่านจาก API ใหม่เสมอ.
 - **ส่งคำขอ:** แบบฟอร์มตรวจข้อมูลในหน้าเว็บ → ผู้ใช้ตรวจทาน → กดส่ง → API ตรวจอีกครั้งและระบุผู้ใช้จาก JWT → service สร้างคำขอ `PENDING` → SQLite บันทึก → ticket แสดงผลตอบกลับจริง.
 - **สถานะคำขอ:** `PENDING` → ผู้ใช้ยกเลิกเป็น `CANCELLED`, หรือเจ้าหน้าที่อนุมัติเป็น `APPROVED`, หรือปฏิเสธเป็น `REJECTED`; คำขอที่อนุมัติแล้วอาจถูกเจ้าหน้าที่บันทึกเป็น `COMPLETED`. API ป้องกันการเปลี่ยนสถานะผิดลำดับ.
 - **ยกเลิก:** ผู้ใช้เจ้าของคำขอส่ง cancel ได้เฉพาะ `PENDING`; record ยังคงอยู่ในประวัติ.
@@ -84,12 +84,12 @@ Frontend แสดงข้อมูลและส่งคำขอผ่า�
 
 ### 4. ลำดับการไหลของข้อมูล
 
-`App.jsx` จัด routes → `AppLayout` แสดง nav/outlet → page รวบรวม/ตรวจ form → `vehicleRequestService.js` เรียก API client → page แสดง loading/error/result → My Requests/Detail ขอข้อมูลจาก endpoint owner-scoped. Admin page แสดง controls ตาม role แต่ role check ของ browser เป็น usability בלבד; server authorization เป็น security boundary.
+`App.jsx` จัด routes → `AppLayout` แสดง nav/outlet → page รวบรวม/ตรวจ form → `vehicleRequestService.js` เรียก API client → page แสดง loading/error/result → My Requests/Detail ขอข้อมูลจาก endpoint owner-scoped. Navigation ใช้ route patterns แบบ explicit: `/` หน้าหลัก, `/requests/new` ขอใช้รถ, `/requests` และ `/requests/:requestId` คำขอของฉัน, `/admin/requests` และ `/admin/requests/:requestId` ตรวจคำขอ, `/guide` คู่มือ; มี aria-current เพียงรายการเดียว. Admin page แสดง controls ตาม role แต่ server API เป็น security boundary.
 
 ### 5. ไฟล์และโฟลเดอร์หลัก
 
-- `source/frontend/src/App.jsx` — active routes
-- `pages/LoginPage.jsx`, `DashboardPage.jsx`, `NewRequestPage.jsx`, `MyRequestsPage.jsx`, `RequestDetailPage.jsx`, `AdminRequestsPage.jsx`, `UserGuidePage.jsx`
+- `source/frontend/src/App.jsx`, `components/activeNavigationPage.js`, `components/ProtectedRoute.jsx` — active routes, explicit current-page mapping, auth restoration gate
+- `pages/LoginPage.jsx`, `DashboardPage.jsx`, `NewRequestPage.jsx`, `MyRequestsPage.jsx`, `RequestDetailPage.jsx`, `AdminRequestsPage.jsx`, `AdminRequestDetailPage.jsx`, `UserGuidePage.jsx`
 - `components/AppHeader.jsx`, `VehicleRequestCard.jsx`, `RequestSubmissionTicket.jsx`
 - `services/authService.js`, `services/vehicleRequestService.js`
 - `contexts/AuthContext.jsx`, `LanguageContext.jsx`; `i18n/translations.js`
@@ -102,7 +102,7 @@ Frontend แสดงข้อมูลและส่งคำขอผ่า�
 ### 7. ปัญหาที่พบบ่อย
 
 - Network/API error: ตรวจ API process, base URL, CORS และว่า API ใช้ schema request ใหม่.
-- Login หายหลัง reload: token เก็บใน memory ตาม implementation ปัจจุบัน; เข้าระบบใหม่.
+- Login หลัง reload: ตรวจ sessionStorage keys และดูว่า API ตอบ 401 หรือไม่; token ถูกปฏิเสธแล้วระบบล้าง session และกลับหน้า Login.
 - รายการว่าง: เป็น empty state ปกติสำหรับบัญชีที่ยังไม่มีคำขอ.
 - แสดงรถ/เหตุผลปฏิเสธไม่ตรง: UI ต้อง render เฉพาะ field ที่ API ส่งมาจริง.
 - วันเวลาไม่ผ่าน: ต้องเป็นเวลาอนาคต; ไป-กลับต้องมี return หลัง departure.
@@ -184,7 +184,7 @@ Reset DB disposable → เริ่ม API → integration test ส่ง HTTP 
 ### 5. ไฟล์และโฟลเดอร์หลัก
 
 - Backend: `source/api/tests/integration/auth.api.test.js`, `vehicleRequests.api.test.js`, `adminRequests.api.test.js`; `tests/unit/requestValidator.test.js`, `shuttleDb.test.js`
-- Frontend: `src/utils/vehicleRequestForm.test.js`, `src/services/vehicleRequestService.test.js`, `src/i18n/translations.test.js`, `src/pages/requestWorkflowStructure.test.js`
+- Frontend: `src/contexts/authSession.test.js`, `src/contexts/LanguageContext.test.js`, `src/utils/vehicleRequestForm.test.js`, `src/services/vehicleRequestService.test.js`, `src/i18n/translations.test.js`, `src/pages/requestWorkflowStructure.test.js`
 - Checkers: `source/api/scripts/check-project.mjs`, `source/frontend/scripts/check-project.mjs`
 
 ### 6. วิธีรันและตรวจสอบ
@@ -198,7 +198,7 @@ npm run build
 DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api
 ```
 
-ณ รอบ audit ที่บันทึกไว้ `npm test` ผ่าน backend 52 tests/7 files และ frontend 19 tests/5 files; check ผ่าน API 4/4 และ frontend 7/7; build ผ่าน. รันใหม่ก่อนส่งมอบหาก source เปลี่ยน.
+ให้ดูจำนวนผลรันล่าสุดใน `FINAL_AUDIT_REPORT.md`; test สำคัญครอบคลุม session restore, admin authorization/reset, การเก็บ users/vehicles และ navigation mapping. รันคำสั่งซ้ำก่อนส่งมอบเมื่อ source เปลี่ยน.
 
 ### 7. ปัญหาที่พบบ่อย
 
@@ -229,12 +229,17 @@ Contract ฉบับเต็มอยู่ใน `source/API_CONTRACT.md`.
 | `GET` | `/api/vehicle-requests/my` | ผู้ใช้ที่ login; รายการของตน |
 | `GET` | `/api/vehicle-requests/:id` | ผู้ใช้เจ้าของคำขอ |
 | `PATCH` | `/api/vehicle-requests/:id/cancel` | เจ้าของ; เฉพาะ PENDING |
-| `GET` | `/api/admin/vehicle-requests` | Admin; review queue/filter |
+| `GET` | `/api/admin/vehicle-requests` | Admin; summary list returns requester id/name only |
+| `GET` | `/api/admin/vehicle-requests/:id` | Admin; detail adds requester email |
 | `GET`, `POST` | `/api/admin/vehicles` | Admin; ดู/ลงทะเบียนรถจริง |
 | `PATCH` | `/api/admin/vehicles/:id/active` | Admin; เปิด/ปิดรถ |
 | `PATCH` | `/api/admin/vehicle-requests/:id/approve` | Admin; อนุมัติและเลือก assignment แบบ optional |
 | `PATCH` | `/api/admin/vehicle-requests/:id/reject` | Admin; ต้องส่ง rejection reason |
 | `PATCH` | `/api/admin/vehicle-requests/:id/complete` | Admin; จบคำขอ APPROVED |
+| `GET` | `/api/admin/reset-data` | Admin; returns reset availability flag |
+| `POST` | `/api/admin/reset-data` | Admin; exact confirmation `RESET`, if enabled |
+
+Admin API เลือกส่งเฉพาะ requester `{ id, name }` ใน list และ `{ id, name, email }` ใน detail; ไม่ส่ง password hash, token หรือ secret. Reset Data ลบเฉพาะแถว `vehicle_requests` ใน transaction (ไม่มีตาราง history/child ใน schema นี้), รักษา users/password hashes/admin, vehicles, schema และ DB file. ต้องมี admin JWT และ `ENABLE_ADMIN_DATA_RESET=true`; ค่า default เป็น false. Endpoint ไม่เรียก `db:reset`/`db:setup`. API startup ตรวจ schema อย่างเดียว; `DB_FILE` ใช้ path จาก environment หรือ default `source/api/data/campus.db` และการ setup schema เป็นคำสั่ง explicit.
 
 ## ตารางฐานข้อมูล
 
@@ -253,7 +258,7 @@ npm run dev --prefix api
 npm run dev --prefix frontend
 ```
 
-API ปกติ `http://localhost:3001`, frontend `http://localhost:5173`. Verification commands: `npm test`, `npm run check`, `npm run build`. Disposable reset: `DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api`. คำสั่ง reset สำรอง target ที่มีอยู่ก่อนแทนไฟล์; ห้ามชี้ไปยัง production/user DB. Seed มี 10 บัญชี demo และไม่มีรถ/คำขอ. รหัส demo `rmutl1234` ใช้เฉพาะ development.
+API ปกติ `http://localhost:3001`, frontend `http://localhost:5173`. `ENABLE_ADMIN_DATA_RESET=true` เป็นการ opt-in ที่ server; ค่าเริ่มต้น false รวมถึง production. Verification commands: `npm test`, `npm run check`, `npm run build`. Disposable reset: `DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api`. คำสั่ง reset สำรอง target ที่มีอยู่ก่อนแทนไฟล์; ห้ามชี้ไปยัง production/user DB. Seed มี 10 บัญชี demo และไม่มีรถ/คำขอ. รหัส demo `rmutl1234` ใช้เฉพาะ development.
 
 ## ข้อจำกัดที่ต้องสื่อสาร
 

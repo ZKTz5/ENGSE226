@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { getActiveNavigationPage } from '../components/activeNavigationPage.js';
 
 const source = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 
@@ -52,12 +53,40 @@ describe('active vehicle-request page structure', () => {
     expect(detail).toContain('cancelVehicleRequest(item.id)');
   });
 
+  test('admin review list links summary cards to admin details with route-based navigation mapping', async () => {
+    const [list, detail, app, header, resetDialog] = await Promise.all([
+      source('./AdminRequestsPage.jsx'), source('./AdminRequestDetailPage.jsx'), source('../App.jsx'), source('../components/AppHeader.jsx'), source('../components/AdminDataResetDialog.jsx'),
+    ]);
+    expect(app).toContain('path="admin/requests/:requestId"');
+    expect(list).toContain('item.requester?.name');
+    expect(list).toContain('resetCapability.enabled === true');
+    expect(list).toContain('formatDeparture(item.departureAt, language)');
+    expect(list).toContain('item.purpose');
+    expect(list).toContain('admin-summary-card');
+    expect(list).toContain('to={`/admin/requests/${item.id}`}');
+    expect(detail).toContain('item.requester?.email');
+    expect(detail).toContain('item.status === \'PENDING\'');
+    expect(detail).toContain('item.rejectionReason');
+    expect(resetDialog).toContain("confirmation === 'RESET'");
+    expect(resetDialog).toContain('pending || confirmation !== \'RESET\'');
+    expect(header).toContain('aria-current={active ? \'page\' : undefined}');
+    expect([
+      getActiveNavigationPage('/'),
+      getActiveNavigationPage('/requests/new'),
+      getActiveNavigationPage('/requests'),
+      getActiveNavigationPage('/requests/27'),
+      getActiveNavigationPage('/admin/requests'),
+      getActiveNavigationPage('/admin/requests/27'),
+      getActiveNavigationPage('/guide'),
+    ]).toEqual(['nav.home', 'nav.newRequest', 'nav.myRequests', 'nav.myRequests', 'nav.admin', 'nav.admin', 'nav.guide']);
+  });
+
   test('user guide is a user-selected route and is not wired as automatic onboarding', async () => {
     const [app, header, guide] = await Promise.all([
       source('../App.jsx'), source('../components/AppHeader.jsx'), source('./UserGuidePage.jsx'),
     ]);
     expect(app).toContain('path="guide"');
-    expect(header).toContain('to="/guide"');
+    expect(header).toContain("links.push(['/guide', 'nav.guide'])");
     expect(guide).toContain('length: 12');
     expect(app).not.toContain('Navigate to="/guide"');
     expect(app).not.toContain('path="guide" element={<Navigate');

@@ -27,7 +27,13 @@ export async function loadSeed() {
   db = await openDatabase();
   db.exec('PRAGMA foreign_keys = ON');
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name);
-  if (!tables.includes('users') && existsSync(SCHEMA_FILE)) db.exec(readFileSync(SCHEMA_FILE, 'utf8'));
+  if (!tables.includes('users')) {
+    if (DB_FILE === ':memory:' && existsSync(SCHEMA_FILE)) {
+      db.exec(readFileSync(SCHEMA_FILE, 'utf8'));
+    } else {
+      throw new Error('Database schema is not initialized. Run `npm run db:setup --prefix api` explicitly before starting the API.');
+    }
+  }
   assertRequestSchema(db);
 }
 

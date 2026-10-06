@@ -39,20 +39,27 @@ All `/api/admin/*` routes require a verified JWT with the server-signed `admin` 
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/admin/vehicle-requests?status=PENDING` | Review request list; optional valid request-status filter. |
+| `GET` | `/api/admin/vehicle-requests?status=PENDING` | Summary list with requester `{ id, name }`; optional status filter. |
+| `GET` | `/api/admin/vehicle-requests/:id` | Review detail; includes requester `{ id, name, email }`. |
 | `GET` | `/api/admin/vehicles` | List registered vehicles (active and inactive). |
 | `POST` | `/api/admin/vehicles` | Register an actual vehicle: `{ code, capacity, homeLocation? }`; home defaults to Jed Yod. |
 | `PATCH` | `/api/admin/vehicles/:id/active` | Set `{ active: true|false }`. |
 | `PATCH` | `/api/admin/vehicle-requests/:id/approve` | Approve PENDING request; optional `{ assignedVehicleId }`. |
 | `PATCH` | `/api/admin/vehicle-requests/:id/reject` | Reject PENDING request with required `{ rejectionReason }`. |
 | `PATCH` | `/api/admin/vehicle-requests/:id/complete` | Record staff-confirmed completion of an APPROVED request. |
+| `GET` | `/api/admin/reset-data` | Returns whether the destructive request reset is enabled; admin only. |
+| `POST` | `/api/admin/reset-data` | When enabled, requires `{ "confirmation": "RESET" }` and returns `deletedRequestCount`. |
 
 Assignment requires a registered active vehicle, capacity at least the request passenger count, and a bounded service window. `BEGIN IMMEDIATE` protects the status/overlap check. Existing APPROVED assignments on the same vehicle may not overlap. An approval without vehicle assignment is allowed and does not fabricate assignment details.
+
+Admin list items include a minimized `requester: { id, name }`; admin detail includes `requester: { id, name, email }`. No user password hash, JWT, secret, or unrelated database fields are selected. The request reset runs a database transaction that deletes only `vehicle_requests`; this schema has no separate request-history/child table. It preserves users/password hashes, admin accounts, vehicles, schema, and the database file. It never calls a setup/reset script. The route requires admin JWT role and `ENABLE_ADMIN_DATA_RESET=true`; the flag defaults false, including production.
 
 ## Validation and errors
 
 Errors have `{ code, error }`; validation responses may include `details`. Relevant HTTP statuses: `400` invalid fields/filter, `401` unauthenticated, `403` wrong role, `404` missing/not-owned record, `409` invalid state, inactive/insufficient vehicle, overlap, or duplicate vehicle code.
 
-Common error codes include `invalid_email_domain`, `invalid_credentials`, `invalid_vehicle_request`, `request_not_found`, `request_not_pending`, `request_not_cancellable`, `vehicle_assignment_overlap`, `vehicle_capacity_insufficient`, `vehicle_inactive`, `service_window_required`, and `rejection_reason_required`.
+Common error codes include `invalid_email_domain`, `invalid_credentials`, `admin_data_reset_disabled`, `reset_confirmation_required`, `admin_data_reset_failed`, `invalid_vehicle_request`, `request_not_found`, `request_not_pending`, `request_not_cancellable`, `vehicle_assignment_overlap`, `vehicle_capacity_insufficient`, `vehicle_inactive`, `service_window_required`, and `rejection_reason_required`.
 
-There are no schedule, passenger booking, cancellation-of-seat, waitlist, or registration endpoints.
+There are no schedule, passenger booking, cancellation-of-seat, or waitlist endpoints, and no account self-registration endpoint. `POST /api/admin/vehicles` registers actual fleet vehicles.
+
+API startup validates the existing request schema and does not apply schema SQL to a file database. Initialize a new development database explicitly with `npm run db:setup --prefix api`; `DB_FILE` selects the file and defaults to `source/api/data/campus.db` when unset. Only the explicit database setup/reset script can create or replace schema/seed data.

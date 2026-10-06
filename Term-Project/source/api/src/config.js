@@ -40,4 +40,5 @@ export const config = {
 
   jwtSecret: resolveJwtSecret(),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '2h',
+  enableAdminDataReset: process.env.ENABLE_ADMIN_DATA_RESET === 'true',
 };

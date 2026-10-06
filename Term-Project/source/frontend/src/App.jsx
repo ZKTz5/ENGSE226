@@ -7,6 +7,7 @@ import NewRequestPage from './pages/NewRequestPage.jsx';
 import MyRequestsPage from './pages/MyRequestsPage.jsx';
 import RequestDetailPage from './pages/RequestDetailPage.jsx';
 import AdminRequestsPage from './pages/AdminRequestsPage.jsx';
+import AdminRequestDetailPage from './pages/AdminRequestDetailPage.jsx';
 import UserGuidePage from './pages/UserGuidePage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
@@ -24,6 +25,7 @@ function App() {
             <Route path="requests" element={<ProtectedRoute><MyRequestsPage /></ProtectedRoute>} />
             <Route path="requests/:requestId" element={<ProtectedRoute><RequestDetailPage /></ProtectedRoute>} />
             <Route path="admin/requests" element={<ProtectedRoute><AdminRequestsPage /></ProtectedRoute>} />
+            <Route path="admin/requests/:requestId" element={<ProtectedRoute><AdminRequestDetailPage /></ProtectedRoute>} />
             <Route path="guide" element={<UserGuidePage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>

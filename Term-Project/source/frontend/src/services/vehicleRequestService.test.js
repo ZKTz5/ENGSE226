@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { createVehicleRequest, getLocations, getMyVehicleRequests, getVehicleRequest, cancelVehicleRequest, getAdminVehicleRequests, getAdminVehicles, approveVehicleRequest, rejectVehicleRequest, completeVehicleRequest } from './vehicleRequestService.js';
+import { createVehicleRequest, getLocations, getMyVehicleRequests, getVehicleRequest, cancelVehicleRequest, getAdminVehicleRequests, getAdminVehicleRequest, getAdminResetAvailability, resetAdminRequestData, getAdminVehicles, approveVehicleRequest, rejectVehicleRequest, completeVehicleRequest } from './vehicleRequestService.js';
 import { ApiError, setApiAuthToken } from './apiClient.js';
 
 function response(body, status = 200) { return { ok: status >= 200 && status < 300, status, json: async () => body }; }
@@ -51,6 +51,22 @@ describe('vehicleRequestService', () => {
     ]);
     expect(fetch.mock.calls.every(([, options]) => options.headers.Authorization === 'Bearer signed.jwt.token')).toBe(true);
     expect(fetch.mock.calls[2][1].body).toBe(JSON.stringify({ assignedVehicleId: 6 }));
+  });
+
+  test('admin detail and explicit reset confirmation use protected endpoints', async () => {
+    setApiAuthToken('signed.jwt.token');
+    fetch.mockResolvedValueOnce(response({ id: 12, requester: { id: 8, name: 'Requester', email: 'user@live.rmutl.ac.th' } }))
+      .mockResolvedValueOnce(response({ enabled: true })).mockResolvedValueOnce(response({ deletedRequestCount: 4 }));
+    await expect(getAdminVehicleRequest(12)).resolves.toMatchObject({ requester: { email: 'user@live.rmutl.ac.th' } });
+    await expect(getAdminResetAvailability()).resolves.toEqual({ enabled: true });
+    await expect(resetAdminRequestData('RESET')).resolves.toEqual({ deletedRequestCount: 4 });
+    expect(fetch.mock.calls.map(([url, options]) => [url, options.method ?? 'GET'])).toEqual([
+      ['http://localhost:3001/api/admin/vehicle-requests/12', 'GET'],
+      ['http://localhost:3001/api/admin/reset-data', 'GET'],
+      ['http://localhost:3001/api/admin/reset-data', 'POST'],
+    ]);
+    expect(fetch.mock.calls.every(([, options]) => options.headers.Authorization === 'Bearer signed.jwt.token')).toBe(true);
+    expect(fetch.mock.calls[2][1].body).toBe(JSON.stringify({ confirmation: 'RESET' }));
   });
 
   test('preserves stable API error codes for translated messages', async () => {

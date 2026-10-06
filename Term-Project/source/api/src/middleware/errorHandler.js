@@ -24,6 +24,7 @@ export function notFound(req, res) {
 /** จับ error ที่หลุดมาจากทุก route — ต้องมี 4 พารามิเตอร์ */
 export function errorHandler(err, req, res, next) {
   const status = err.status ?? 500;
+  const hideDebugDetails = config.isProd || req.path === '/api/admin/reset-data';
 
   // error จาก express.json() — แปลงเป็นข้อความที่ผู้ใช้อ่านเข้าใจ
   const known = {
@@ -39,6 +40,6 @@ export function errorHandler(err, req, res, next) {
   res.status(status).json({
     error: status >= 500 ? 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์' : (known[err.type] ?? err.message),
     // ส่ง stack เฉพาะตอนพัฒนา — production ห้ามเปิดเผยโครงสร้างภายใน
-    ...(config.isProd ? {} : { stack: err.stack?.split('\n').slice(0, 3) }),
+    ...(hideDebugDetails ? {} : { stack: err.stack?.split('\n').slice(0, 3) }),
   });
 }

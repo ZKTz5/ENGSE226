@@ -16,9 +16,11 @@ Authentication is login-only. Backend accepts only an email ending exactly in `@
 
 ## Active routes and endpoints
 
-Frontend routes: `/login`, `/`, `/requests/new`, `/requests`, `/requests/:requestId`, `/admin/requests`, `/guide`.
+Frontend routes: `/login`, `/`, `/requests/new`, `/requests`, `/requests/:requestId`, `/admin/requests`, `/admin/requests/:requestId`, `/guide`. Explicit route matching gives exactly one page link `aria-current="page"`; logout and language controls are not active pages.
 
-API endpoints are documented in `source/API_CONTRACT.md`. Main user endpoints are `POST /api/auth/login`, `GET /api/locations`, `POST /api/vehicle-requests`, `GET /api/vehicle-requests/my`, `GET /api/vehicle-requests/:id`, and `PATCH /api/vehicle-requests/:id/cancel`. Admin endpoints are under `/api/admin/vehicle-requests` and `/api/admin/vehicles`, and include request listing, vehicle listing/register/activation, approve, reject, and complete. There are no active schedule, booking, waitlist, or registration endpoints.
+API endpoints are documented in `source/API_CONTRACT.md`. Main user endpoints are `POST /api/auth/login`, `GET /api/locations`, `POST /api/vehicle-requests`, `GET /api/vehicle-requests/my`, `GET /api/vehicle-requests/:id`, and `PATCH /api/vehicle-requests/:id/cancel`. Admin endpoints include request list/detail (list exposes requester id/name; detail adds email), vehicle registry/review actions, and the gated data-reset operation. There are no active schedule, passenger booking, or waitlist endpoints and no account self-registration.
+
+Authentication is restored before protected routes render. `sessionStorage` keys are `rmutl-shuttle-access-token` and `rmutl-shuttle-user`; only JWT and minimal id/name/email/role are stored, never passwords or request records. Expired/malformed values are cleared locally; API 401 clears the token and returns the user to Login. Request list/detail pages fetch fresh API data after refresh.
 
 ## Database safety
 
@@ -28,16 +30,17 @@ Do not reset or modify `source/api/data/campus.db` unless explicitly required by
 DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api
 ```
 
-`db:reset` is explicit and the setup script timestamp-backs up an existing target before replacing it. The disposable reset produced tables `users`, `vehicles`, `vehicle_requests`, with 10 seeded users and empty vehicles/requests. The fleet must be populated with actual vehicles before assignment; no fictional fleet is seeded.
+`db:reset` is an explicit shell operation and the setup script timestamp-backs up an existing target before replacing it. Normal API startup validates the configured schema and never executes destructive schema SQL; a new DB must be prepared with explicit `npm run db:setup --prefix api`. Default `DB_FILE` is `source/api/data/campus.db` when unset. The admin HTTP reset is separate: it deletes only `vehicle_requests` in a transaction and preserves users/password hashes/admin, vehicles, schema, and DB file. It requires server-side admin JWT plus `ENABLE_ADMIN_DATA_RESET=true` (false by default) and never calls setup scripts. This schema has no request child/history table. The disposable reset produced tables `users`, `vehicles`, `vehicle_requests`, with 10 seeded users and empty vehicles/requests. The fleet must be populated with actual vehicles before assignment; no fictional fleet is seeded.
 
 ## Verification performed
 
 From `source/`:
 
-- `npm test`: backend **52 passed** across 7 files; frontend **19 passed** across 5 files.
-- `npm run check`: API **4/4**, frontend **7/7** checks passed.
-- `npm run build`: production frontend build passed (Vite 8.1.5).
-- `git diff --check`: run after final documentation and guide changes; see final audit for final result.
+- Final `npm test`: backend **53 passed** across 7 files; frontend **29 passed** across 7 files.
+- `npm run check`: API **4/4**, frontend **7/7** checks passed after admin detail/reset UI changes.
+- `npm run build`: production frontend build passed (Vite 8.1.5; 53 modules).
+- File-backed startup preservation check: created a request in a disposable `/tmp` SQLite DB, ran the same `loadSeed()` used at API startup, and confirmed the request remained.
+- `git diff --check`: passed after final documentation edits.
 - Disposable DB HTTP smoke exercised exact locations, live-domain login/rejection, removed endpoint 404s, auth, one-way/round-trip PENDING, ownership, cancellation/history, admin authorization, vehicle registration, approval, overlap denial, rejection reason, and completion.
 
 No browser click-through E2E or production deployment was performed. Do not represent those as verified.
@@ -50,6 +53,7 @@ No browser click-through E2E or production deployment was performed. Do not repr
 - A one-way request needs a service-end time before it can be assigned a vehicle; without an interval, admin may approve it without assignment.
 - Existing old booking data is not converted to requests. Back up data before any explicit reset.
 - No production deployment or persistent production database was tested.
+- `ENABLE_ADMIN_DATA_RESET` is false in the current environment, so the admin UI hides Reset Data until the operator explicitly enables the flag. API still enforces the flag and signed admin role.
 
 ## Local commands
 

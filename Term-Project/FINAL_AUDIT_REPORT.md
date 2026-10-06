@@ -11,6 +11,8 @@ Audit basis: current repository implementation and the verification commands lis
 - [x] New request is server-set `PENDING`; no client-supplied status/assignment can grant approval.
 - [x] Owner-only list/detail; other user's detail is concealed; eligible pending cancellation retains history.
 - [x] Signed-role admin API and admin UI for actual vehicle registration/activation, approval, rejection with reason, and completion.
+- [x] Explicit single-active navigation mapping, admin request summary/detail pages, and opt-in admin-only request data reset.
+- [x] Session restore happens before protected-route decisions; only JWT and minimal user identity persist in tab-scoped `sessionStorage`; request data refetches through API after refresh.
 - [x] Assignment validates active vehicle/capacity/service interval and rejects overlapping approved assignments transactionally.
 - [x] Loading, empty, API-error and submission-success states; success reflects the API's status.
 - [x] Responsive warm brown theme, keyboard focus and reduced-motion support.
@@ -20,7 +22,9 @@ Audit basis: current repository implementation and the verification commands lis
 
 - [x] `POST /api/auth/login`; `GET /api/locations`; `GET /api/health`.
 - [x] `POST /api/vehicle-requests`; `GET /api/vehicle-requests/my`; `GET /api/vehicle-requests/:id`; `PATCH /api/vehicle-requests/:id/cancel`.
-- [x] Admin: `GET /api/admin/vehicle-requests`, `GET/POST /api/admin/vehicles`, `PATCH /api/admin/vehicles/:id/active`, and request `approve`, `reject`, `complete` actions.
+- [x] Admin: request list/detail, `GET/POST /api/admin/vehicles`, `PATCH /api/admin/vehicles/:id/active`, and request `approve`, `reject`, `complete` actions.
+- [x] Admin detail returns requester `{ id, name, email }`; list returns `{ id, name }` only. Responses select no password hashes, tokens, or secrets.
+- [x] `GET/POST /api/admin/reset-data`: admin JWT only; reset is disabled unless `ENABLE_ADMIN_DATA_RESET=true`; POST additionally requires exact `RESET` confirmation.
 - [x] Authentication, validation, ownership, transition, role and overlap rules are enforced on the server.
 - [x] Old `/api/schedules` and `/api/bookings` returned 404 in disposable HTTP smoke.
 
@@ -36,20 +40,25 @@ See [API contract](source/API_CONTRACT.md) for payloads, status codes, and error
 
 The schema seeds ten development accounts, including one admin; it seeds no fleet and no requests. There is no schedule/campus/booking table in the new reset schema.
 
+`DB_FILE` resolves to `/home/zee/workspace/ENGSE226/Term-Project/source/api/data/campus.db` in the current environment (the default when unset). That local file exists and is ignored, not tracked; no `.db`, `.db-wal`, `.db-shm`, `.sqlite`, or `.sqlite3` file is tracked. API startup validates schema and does not apply destructive schema SQL; new schema setup is explicit. The admin reset deletes only `vehicle_requests` transactionally and preserves users/password hashes/admin, vehicles, schema, and database file. No separate request-history/child table exists. Current `ENABLE_ADMIN_DATA_RESET` is false, so the admin UI does not offer reset until an operator opts in.
+
 ## Test and build summary
 
 Executed from `source/` after implementation:
 
 | Command | Actual result |
 |---|---|
-| `npm test` | Backend 52 passed / 7 files; frontend 19 passed / 5 files |
+| `npm test` | Backend 53 passed / 7 files; frontend 29 passed / 7 files |
 | `npm run check` | API 4/4; frontend 7/7 |
 | `npm run build` | Passed; Vite 8.1.5 production bundle created |
+| File-backed API startup preservation | Passed; `loadSeed()` preserved an existing request row in a disposable SQLite file |
 | Disposable DB reset | Passed twice; 10 users, 0 vehicles, 0 requests; second reset backed up target |
 | HTTP smoke | Passed: two locations; live-domain acceptance and other-domain rejection; PENDING one-way/round-trip; ownership; cancellation history; admin guard/review, actual assignment, overlap denial, rejection, completion; legacy schedule/booking endpoints 404 |
-| `git diff --check` | Run after all final documentation edits; see repository status at handoff |
+| `git diff --check` | Passed after final docs; no whitespace errors |
 
 No browser-based click-through E2E was run. Static frontend structure/flow checks and API tests are not a substitute for that.
+
+Refresh/session tests use the actual storage restore helper and protected-route structure. The startup-preservation smoke invokes the same database loader used by the API server against a disposable file database; no browser refresh or real production database was used.
 
 ## Disposable database command
 

@@ -4,3 +4,10 @@ data/requests.json
 .DS_Store
 *.env
 *.db
+# Local database runtime files
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+EOFv

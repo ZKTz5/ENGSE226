@@ -29,14 +29,17 @@ await check('PENDING feedback follows API response and reports no false approval
   return page.includes('setCreated(response)') && ticket.includes('request.status')
     && ticket.includes('request.ticket.submitted') && ticket.includes("request.status === 'APPROVED'");
 });
-await check('My Requests, ownership detail route, cancellation, and admin UI exist', async () => {
-  const [mine, detail, admin, header] = await Promise.all([
+await check('My Requests, request detail, admin review list/detail, and reset action exist', async () => {
+  const [mine, detail, admin, adminDetail, app, header] = await Promise.all([
     read('src/pages/MyRequestsPage.jsx'), read('src/pages/RequestDetailPage.jsx'),
-    read('src/pages/AdminRequestsPage.jsx'), read('src/components/AppHeader.jsx'),
+    read('src/pages/AdminRequestsPage.jsx'), read('src/pages/AdminRequestDetailPage.jsx'),
+    read('src/App.jsx'), read('src/components/AppHeader.jsx'),
   ]);
   return mine.includes('getMyVehicleRequests') && mine.includes('cancelVehicleRequest')
     && detail.includes('getVehicleRequest(requestId)') && detail.includes("item.status === 'PENDING'")
-    && admin.includes('approveVehicleRequest') && admin.includes('rejectVehicleRequest') && admin.includes('completeVehicleRequest')
+    && app.includes('path="admin/requests/:requestId"') && admin.includes('admin-summary-card')
+    && admin.includes('item.requester?.name') && admin.includes('getAdminResetAvailability')
+    && adminDetail.includes('approveVehicleRequest') && adminDetail.includes('rejectVehicleRequest') && adminDetail.includes('completeVehicleRequest')
     && header.includes("session?.user?.role === 'admin'");
 });
 await check('Thai default, bilingual switch, guide and loading/empty/error states remain', async () => {
