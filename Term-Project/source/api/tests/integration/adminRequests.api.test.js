@@ -24,6 +24,20 @@ const adminEmail = 'admin@live.rmutl.ac.th';
 beforeEach(async () => loadSeed());
 
 describe('admin vehicle request review', () => {
+  test('serves the initial fleet and complete request history with working status filters', async () => {
+    const admin = await login(adminEmail);
+    const fleet = await request(app).get('/api/admin/vehicles').set(admin).expect(200);
+    expect(fleet.body).toHaveLength(6);
+    expect(fleet.body.filter(({ active }) => active === 0)).toHaveLength(1);
+    const history = await request(app).get('/api/admin/vehicle-requests').set(admin).expect(200);
+    expect(history.body).toHaveLength(45);
+    for (const status of ['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'COMPLETED']) {
+      const filtered = await request(app).get(`/api/admin/vehicle-requests?status=${status}`).set(admin).expect(200);
+      expect(filtered.body).toHaveLength(9);
+      expect(filtered.body.every((row) => row.status === status)).toBe(true);
+    }
+  });
+
   test('rejects regular users and unauthenticated requests', async () => {
     await request(app).get('/api/admin/vehicle-requests').expect(401);
     await request(app).get('/api/admin/vehicle-requests').set(await login(userEmail)).expect(403);

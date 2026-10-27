@@ -41,13 +41,19 @@ API ปกติอยู่ที่ `http://localhost:3001`; frontend Vite ท
 
 ## Safe disposable database reset
 
+ข้อมูลตั้งต้นอยู่ใน `api/data/schema.sql` โดยตรง เมื่อสร้างหรือ reset ฐานข้อมูลจะได้ผู้ใช้ 10 บัญชี (user 9, admin 1), รถ 6 คัน และคำขอ 45 รายการ ผู้ใช้ทั่วไปแต่ละคนมีคำขอครบ 5 สถานะ สถานะละหนึ่งรายการ รวมสถานะละ 9 รายการ ทั้งเที่ยวเดียว/ไปกลับและทั้งสองทิศทาง
+
+รถมีความจุ 4, 12, 15, 30, 40 และ 50 คน โดยคัน 50 คนปิดใช้งานเพื่อซ่อมบำรุง คำขอครอบคลุมอนุมัติพร้อมรถ/รอมอบหมายรถ, ไม่อนุมัติพร้อมเหตุผล, ยกเลิก, เดินทางเสร็จแล้ว และคำขอกลุ่ม 60 คนที่ต้องประสานรถเพิ่ม มีคำขอรอพิจารณาที่เวลาทับกับงานอนุมัติเพื่อฝึกเลือกรถคันอื่น แต่รายการที่อนุมัติและมอบหมายรถแล้วมีความจุเพียงพอและไม่ทับกัน
+
+วันเดินทางอิงวันที่สร้าง DB ตามเวลาไทย: คำขอที่ยังไม่เสร็จอยู่ในอนาคต ส่วน `COMPLETED` เป็นประวัติย้อนหลัง รหัสผ่านตั้งต้นทุกบัญชีคือ `rmutl1234` การแก้ `schema.sql` มีผลเมื่อสร้าง/reset ฐานข้อมูล และ API startup จะไม่เติมหรือเปลี่ยนข้อมูลใน DB ที่มีอยู่โดยอัตโนมัติ
+
 คำสั่งตรวจสอบและทดลองที่ไม่แตะ `source/api/data/campus.db`:
 
 ```bash
 DB_FILE=/tmp/rmutl-shuttle-requests.db npm run db:reset --prefix api
 ```
 
-คำสั่งนี้สร้าง `users`, `vehicles`, `vehicle_requests` พร้อม seed users; fleet/request tables เริ่มว่าง. ห้ามชี้ไปยัง production หรือ user database. การ reset default DB ต้องหยุด API ก่อนและเป็นคำสั่ง explicit; `setup-db.mjs --force` ทำสำเนา timestamped backup ก่อนแทนไฟล์ แต่ reset จะสร้าง schema/seed ใหม่และไม่แปลง booking เก่าเป็นคำขอ เพราะข้อมูลเดิมไม่พอ. สำรองข้อมูลที่ต้องเก็บก่อน reset. API startup เพียงตรวจ schema ที่มีอยู่และไม่รัน schema SQL เพื่อแทนข้อมูล; หากยังไม่มี schema ต้องสั่ง `npm run db:setup --prefix api` อย่างชัดเจน. `DB_FILE` กำหนดไฟล์ และเมื่อไม่ตั้งค่าจะใช้ `source/api/data/campus.db`.
+คำสั่งนี้สร้าง `users`, `vehicles`, `vehicle_requests` พร้อมข้อมูลตั้งต้นข้างต้น. ห้ามชี้ไปยัง production หรือ user database. การ reset default DB ต้องหยุด API ก่อนและเป็นคำสั่ง explicit; `setup-db.mjs --force` ทำสำเนา timestamped backup ก่อนแทนไฟล์ แต่ reset จะสร้าง schema/seed ใหม่และไม่แปลง booking เก่าเป็นคำขอ เพราะข้อมูลเดิมไม่พอ. สำรองข้อมูลที่ต้องเก็บก่อน reset. API startup เพียงตรวจ schema ที่มีอยู่และไม่รัน schema SQL เพื่อแทนข้อมูล; หากยังไม่มี schema ต้องสั่ง `npm run db:setup --prefix api` อย่างชัดเจน. `DB_FILE` กำหนดไฟล์ และเมื่อไม่ตั้งค่าจะใช้ `source/api/data/campus.db`.
 
 ปุ่ม Reset Data ใน admin ใช้ `POST /api/admin/reset-data` โดยต้องเป็น admin JWT และตั้ง `ENABLE_ADMIN_DATA_RESET=true` ใน environment ของ API; ค่าเริ่มต้นคือปิด รวมถึง production. การทำงานนี้ลบเฉพาะ request records ภายใน transaction และเก็บ users, password hashes, admin account, vehicles, schema และไฟล์ฐานข้อมูลไว้. หน้า admin ซ่อนปุ่มเมื่อ API แจ้งว่าฟีเจอร์ปิด.
 
@@ -71,4 +77,4 @@ Backend ใช้ Vitest + Supertest integration tests; frontend ใช้ Vites
 
 ## Production limitations
 
-ยังไม่มีการ deploy หรือ persistent production database ที่ตรวจยืนยันแล้ว. ยังไม่มี live fleet registry seed; admin ต้องบันทึกรถจริงก่อนมอบหมาย. ไม่มี GPS tracking หรือ integration กับ dispatch/notification service. การแจ้งเตือนสถานะอาศัยผู้ใช้เปิด My Requests/refresh หน้า.
+ยังไม่มีการ deploy หรือ persistent production database ที่ตรวจยืนยันแล้ว. ทะเบียนรถใน schema เป็นข้อมูลตั้งต้นของโปรเจกต์; ข้อมูลรถที่ใช้งานจริงยังไม่ได้ตรวจยืนยัน. ไม่มี GPS tracking หรือ integration กับ dispatch/notification service. การแจ้งเตือนสถานะอาศัยผู้ใช้เปิด My Requests/refresh หน้า.

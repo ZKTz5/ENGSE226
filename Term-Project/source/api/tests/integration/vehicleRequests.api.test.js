@@ -75,11 +75,16 @@ describe('vehicle request API', () => {
     const otherToken = await tokenFor(emails.patchara);
     const created = await request(app).post('/api/vehicle-requests').set(bearer(ownerToken)).send(requestInput()).expect(201);
     const ownList = await request(app).get('/api/vehicle-requests/my').set(bearer(ownerToken)).expect(200);
-    expect(ownList.body.map(({ id }) => id)).toEqual([created.body.id]);
+    expect(ownList.body).toHaveLength(6); // Five initial requests and the newly created request.
+    expect(ownList.body.map(({ id }) => id)).toContain(created.body.id);
+    expect(ownList.body.every(({ userId }) => userId === created.body.userId)).toBe(true);
     expect((await request(app).get(`/api/vehicle-requests/${created.body.id}`).set(bearer(ownerToken)).expect(200)).body.id)
       .toBe(created.body.id);
     await request(app).get(`/api/vehicle-requests/${created.body.id}`).set(bearer(otherToken)).expect(404);
-    expect((await request(app).get('/api/vehicle-requests/my').set(bearer(otherToken)).expect(200)).body).toEqual([]);
+    const otherList = await request(app).get('/api/vehicle-requests/my').set(bearer(otherToken)).expect(200);
+    expect(otherList.body).toHaveLength(5);
+    const otherId = getDb().prepare('SELECT id FROM users WHERE email = ?').get(emails.patchara).id;
+    expect(otherList.body.every(({ userId }) => userId === otherId)).toBe(true);
   });
 
   test('cancels pending request and retains the request in user history', async () => {
@@ -88,8 +93,8 @@ describe('vehicle request API', () => {
     const cancelled = await request(app).patch(`/api/vehicle-requests/${created.body.id}/cancel`).set(bearer(token)).expect(200);
     expect(cancelled.body.status).toBe('CANCELLED');
     const history = await request(app).get('/api/vehicle-requests/my').set(bearer(token)).expect(200);
-    expect(history.body).toHaveLength(1);
-    expect(history.body[0].status).toBe('CANCELLED');
+    expect(history.body).toHaveLength(6);
+    expect(history.body.find(({ id }) => id === created.body.id).status).toBe('CANCELLED');
     await request(app).patch(`/api/vehicle-requests/${created.body.id}/cancel`).set(bearer(token)).expect(409);
   });
 
@@ -98,6 +103,7 @@ describe('vehicle request API', () => {
     const created = await request(app).post('/api/vehicle-requests').set(bearer(token)).send(requestInput()).expect(201);
     getDb().prepare("UPDATE vehicle_requests SET status = 'APPROVED' WHERE id = ?").run(created.body.id);
     await request(app).patch(`/api/vehicle-requests/${created.body.id}/cancel`).set(bearer(token)).expect(409);
-    expect((await request(app).get('/api/vehicle-requests/my').set(bearer(token)).expect(200)).body[0].status).toBe('APPROVED');
+    const history = await request(app).get('/api/vehicle-requests/my').set(bearer(token)).expect(200);
+    expect(history.body.find(({ id }) => id === created.body.id).status).toBe('APPROVED');
   });
 });
